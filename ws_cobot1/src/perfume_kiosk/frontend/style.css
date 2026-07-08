@@ -1,0 +1,645 @@
+/* ===== 디자인 토큰 — reference(오늘의 향수) 모노크롬 에디토리얼 ===== */
+:root {
+    --bg: #fbfaf7;
+    --ink: #111;
+    --muted: #555;
+    --soft: #8a8577;
+    --line: #d9d6cf;
+    --card: #fffefb;
+    --hover: #f4f1eb;
+    --error: #b3392b;
+    --accent: #b3714e;       /* 따뜻한 테라코타 — 주요 액션 버튼 */
+    --accent-deep: #96593c;
+    --serif: "Noto Serif KR", "Noto Serif CJK KR", "Nanum Myeongjo", "Batang", serif;
+    --maxw: 1080px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    /* 키오스크 터치 오작동 방지: 더블탭 확대 금지, 텍스트 선택/롱프레스 메뉴 금지 */
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+html, body {
+    overscroll-behavior: none; /* 당겨서 새로고침·바운스 스크롤 방지 */
+}
+
+body {
+    font-family: "Pretendard", "Noto Sans KR", -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    height: 100vh;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+}
+
+button { font-family: inherit; }
+
+/* ===== 화면 전환 ===== */
+.screen {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    padding: 28px 48px;
+    text-align: center;
+}
+.screen.active { display: flex; animation: screen-in 0.5s ease; }
+@keyframes screen-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+#screen-main.active { justify-content: flex-start; }
+
+/* ===== 시작 화면 ===== */
+#screen-start { position: relative; overflow: hidden; }
+.start-inner {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* 관리자 숨김 진입 영역 (오른쪽 위 모서리, 화면엔 안 보임) */
+.admin-hotspot {
+    position: absolute;
+    top: 0; right: 0;
+    width: 80px; height: 80px;
+    z-index: 10;
+}
+
+.brand-title {
+    font-family: var(--serif);
+    font-size: 64px;
+    font-weight: 400;
+    letter-spacing: 20px;
+    margin-left: 20px; /* letter-spacing 보정: 마지막 글자 뒤 여백만큼 밀어 중앙 정렬 */
+    line-height: 1.1;
+    margin-top: 34px;
+}
+.divider {
+    width: 96px;
+    height: 1px;
+    background: var(--ink);
+    margin: 28px auto 20px;
+}
+.slogan {
+    font-family: var(--serif);
+    font-size: 21px;
+    letter-spacing: 13px;
+    margin-left: 13px;
+    color: #222;
+}
+.hint { color: var(--muted); font-size: 15px; letter-spacing: 1px; }
+.hint.small { margin-top: 14px; font-size: 12px; color: var(--soft); }
+.touch-hint { margin-top: 60px; letter-spacing: 3px; animation: pulse 2.2s ease-in-out infinite; }
+@keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50%       { opacity: 1; }
+}
+
+/* ===== 로고 마크 (시작 화면에서는 잔잔하게, 제조중 화면에서는 활발하게) ===== */
+.hero-anim svg { display: block; margin: 0 auto; }
+
+.hero-anim .bub {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: bub-drift 4.5s ease-in-out infinite;
+}
+.hero-anim .bub:nth-child(2) { animation-delay: -1s; }
+.hero-anim .bub:nth-child(3) { animation-delay: -2s; }
+.hero-anim .bub:nth-child(4) { animation-delay: -3s; }
+.hero-anim .bub:nth-child(5) { animation-delay: -1.6s; }
+@keyframes bub-drift {
+    0%, 100% { opacity: 0.85; transform: translateY(0); }
+    50%      { opacity: 0.35; transform: translateY(-5px); }
+}
+
+/* ===== 메인 화면 헤더 ===== */
+.app-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: var(--maxw);
+    padding: 16px 4px 0;
+    font-family: var(--serif);
+    font-size: 17px;
+    letter-spacing: 6px;
+    color: var(--ink);
+}
+.brand-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--ink);
+}
+.header-home {
+    margin-left: auto;
+    padding: 11px 24px;
+    border: 1.4px solid var(--ink);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink);
+    font-size: 14px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.header-home:active {
+    background: var(--ink);
+    color: var(--bg);
+}
+
+/* ===== 탭 ===== */
+.tabs {
+    display: flex;
+    width: 100%;
+    max-width: var(--maxw);
+    border-bottom: 1px solid var(--line);
+    margin: 18px 0 24px;
+}
+.tab {
+    flex: 1;
+    padding: 18px 0;   /* 터치 타깃 48px 이상 확보 (키오스크 권장) */
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: transparent;
+    color: var(--soft);
+    font-family: var(--serif);
+    font-size: 19px;
+    letter-spacing: 4px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+}
+.tab.active {
+    color: var(--ink);
+    border-bottom-color: var(--ink);
+}
+
+/* ===== 탭 패널 ===== */
+.tab-panel {
+    display: none;
+    width: 100%;
+    max-width: var(--maxw);
+    overflow-y: auto;
+    padding-bottom: 28px;
+}
+.tab-panel.active { display: block; flex: 1; min-height: 0; }
+
+/* ===== 추천 카드 ===== */
+.cards { display: flex; flex-direction: column; }
+.cards > .hint { padding: 24px 0; }
+.card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 26px 30px;
+    text-align: left;
+    animation: card-in 0.45s ease both;
+}
+.card + .card { border-top: none; }
+.card:nth-child(2) { animation-delay: 0.08s; }
+.card:nth-child(3) { animation-delay: 0.16s; }
+.card:nth-child(n+4) { animation-delay: 0.24s; }
+@keyframes card-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.card-top {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 16px;
+}
+.card-icon {
+    width: 56px; height: 56px;
+    border: 1.4px solid var(--ink);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+    flex: none;
+    background: transparent;
+}
+.card-icon svg { width: 28px; height: 28px; }
+.card h3 {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    margin-bottom: 6px;
+}
+.card .desc { color: var(--muted); font-size: 15px; letter-spacing: 0.5px; }
+.card .ratios {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+.card .ratios span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: transparent;
+    padding: 8px 16px;
+    font-size: 13px;
+    letter-spacing: 1px;
+}
+.ratios span::before {
+    content: "";
+    width: 8px; height: 8px;
+    border-radius: 50%;
+}
+.ratios .chip-top::before  { background: var(--ink); }
+.ratios .chip-mid::before  { background: transparent; border: 1.4px solid var(--ink); }
+.ratios .chip-base::before { background: var(--line); border: 1px solid var(--soft); }
+
+/* ===== 나만의 조합 — 노트 괘선 레이아웃 (reference) ===== */
+.note-layout {
+    border-top: 1px solid var(--line);
+    margin-bottom: 4px;
+}
+.note-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 1fr;
+    border-bottom: 1px solid var(--line);
+}
+.note-label {
+    display: flex;
+    align-items: center;
+    font-family: Georgia, var(--serif);
+    font-size: 32px;
+    color: var(--ink);
+    padding: 24px 0;
+    text-align: left;
+}
+.choice-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px 20px;
+    border-left: 1px solid var(--line);
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.25s, color 0.25s, box-shadow 0.25s;
+}
+.choice-card:active { background: var(--hover); }
+.choice-card input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* 향 계열별 감성 톤 (틴트 배경 · 포인트 컬러) */
+.choice-card.scent-citrus { --tint: #fbecd3; --scent: #c07a2a; }
+.choice-card.scent-green  { --tint: #e6edda; --scent: #6f8b4f; }
+.choice-card.scent-floral { --tint: #f9e3e8; --scent: #c26b80; }
+.choice-card.scent-woody  { --tint: #eee3d1; --scent: #8a6845; }
+.choice-card.scent-musk   { --tint: #ebe7f1; --scent: #8b7ca6; }
+.choice-card.scent-amber  { --tint: #f6e6c9; --scent: #b8862f; }
+
+/* 선택 시 검은 반전 대신 향 계열 색으로 은은하게 물든다 */
+.choice-card:has(input:checked) {
+    background: var(--tint, var(--hover));
+    box-shadow: inset 0 0 0 2px var(--scent, var(--ink));
+}
+.choice-card:has(input:checked):active { background: var(--tint, var(--hover)); }
+.choice-card:has(input:checked) .choice-title { color: var(--scent, var(--ink)); }
+
+/* 선택 표시 체크 배지 */
+.choice-card::after {
+    content: "✓";
+    position: absolute;
+    top: 14px; right: 14px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--scent, var(--ink));
+    color: #fff;
+    font-size: 15px;
+    line-height: 26px;
+    text-align: center;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.2s, transform 0.2s;
+}
+.choice-card:has(input:checked)::after {
+    opacity: 1;
+    transform: scale(1);
+}
+.choice-card .icons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    align-items: flex-start;
+}
+.icon-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    letter-spacing: 1px;
+}
+.note-icon {
+    width: 56px; height: 56px;
+    padding: 11px;
+    border-radius: 50%;
+    background: var(--tint, var(--hover));
+    color: var(--scent, var(--ink));
+    transition: background 0.25s, transform 0.25s;
+}
+.note-icon svg {
+    width: 100%;
+    height: 100%;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.icon-label { color: var(--muted); }
+.choice-card:has(input:checked) .note-icon {
+    background: rgba(255, 255, 255, 0.75);
+    transform: translateY(-2px);
+}
+.choice-card:has(input:checked) .icon-label { color: var(--scent, var(--ink)); }
+.choice-title {
+    font-family: var(--serif);
+    font-size: 23px;
+    font-weight: 500;
+    letter-spacing: 4px;
+}
+.choice-desc {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--muted);
+    letter-spacing: 0.3px;
+    word-break: keep-all;
+}
+.choice-card:has(input:checked) .choice-desc { color: var(--muted); }
+
+/* ===== 내맘대로 감성 헤더 ===== */
+.free-hero {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.free-tagline {
+    font-family: var(--serif);
+    font-size: 15px;
+    font-style: italic;
+    letter-spacing: 1px;
+    color: var(--ink);
+}
+
+/* ===== 내맘대로 슬롯 ===== */
+.free-guide {
+    text-align: left;
+    margin-bottom: 16px;
+    color: var(--muted);
+    font-size: 15px;
+    letter-spacing: 0.5px;
+}
+.free-counter { font-weight: 700; color: var(--ink); }
+.free-counter.over { color: var(--error); }
+.free-error {
+    text-align: left;
+    margin: -8px 0 14px;
+    color: var(--error);
+    font-size: 14px;
+    font-weight: 600;
+}
+.unit-note {
+    display: block;
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: var(--soft);
+}
+.slots {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+}
+.slot {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 22px 20px 20px;
+    animation: card-in 0.4s ease both;
+    transition: border-color 0.2s;
+}
+.slot:nth-child(2) { animation-delay: 0.05s; }
+.slot:nth-child(3) { animation-delay: 0.10s; }
+.slot:nth-child(4) { animation-delay: 0.15s; }
+.slot:nth-child(5) { animation-delay: 0.20s; }
+.slot:nth-child(6) { animation-delay: 0.25s; }
+
+.slot-badge {
+    position: absolute;
+    top: 16px; right: 18px;
+    font-family: Georgia, var(--serif);
+    font-size: 17px;
+    color: var(--soft);
+}
+.slot-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 4px;
+}
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: left;
+}
+.field-label {
+    font-size: 12.5px;
+    letter-spacing: 2px;
+    color: var(--soft);
+}
+.field select {
+    width: 100%;
+    padding: 14px 40px 14px 16px;
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--ink);
+    background-color: var(--bg);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23555555' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 18px;
+    border: 1px solid var(--line);
+    border-radius: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+.field select:focus {
+    outline: none;
+    border-color: var(--ink);
+}
+
+/* ===== 버튼 ===== */
+.make-btn {
+    display: block;
+    width: 100%;
+    max-width: var(--maxw);
+    margin: 24px auto 0;
+    padding: 18px;
+    background: linear-gradient(135deg, #c98f68, var(--accent));
+    color: #fff9f3;
+    border: none;
+    border-radius: 999px;
+    font-size: 18px;
+    letter-spacing: 5px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(179, 113, 78, 0.28);
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+}
+.make-btn:active {
+    background: var(--accent-deep);
+    box-shadow: 0 3px 10px rgba(150, 89, 60, 0.3);
+    transform: translateY(1px);
+}
+.card .make-btn { margin-top: 4px; }
+
+/* ===== 제조중 화면 ===== */
+.making-anim { margin-bottom: 26px; }
+.making-anim svg { width: 190px; height: auto; }
+/* 제조중에는 스프레이 방울이 바쁘게 피어오른다 */
+.making-anim .bub {
+    animation: bub-busy 1.6s ease-in-out infinite;
+}
+.making-anim .bub:nth-child(2) { animation-delay: -0.3s; }
+.making-anim .bub:nth-child(3) { animation-delay: -0.6s; }
+.making-anim .bub:nth-child(4) { animation-delay: -0.9s; }
+.making-anim .bub:nth-child(5) { animation-delay: -1.2s; }
+@keyframes bub-busy {
+    0%   { opacity: 0; transform: translateY(10px) scale(0.7); }
+    45%  { opacity: 1; transform: translateY(-4px) scale(1); }
+    100% { opacity: 0; transform: translateY(-16px) scale(0.85); }
+}
+.making-anim .logo-drop {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: drop-pulse 1.4s ease-in-out infinite;
+}
+@keyframes drop-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.1); }
+}
+
+.loading-dots span {
+    display: inline-block;
+    animation: dot-blink 1.2s infinite;
+}
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dot-blink {
+    0%, 60%, 100% { opacity: 0.2; }
+    30%           { opacity: 1; }
+}
+
+/* ===== 완료 화면 ===== */
+#screen-done { position: relative; overflow: hidden; }
+
+/* 흩날리는 꽃잎 (모노크롬 톤) */
+.petals i {
+    position: absolute;
+    top: -24px;
+    display: block;
+    width: 10px; height: 14px;
+    border-radius: 80% 0 80% 0;
+    opacity: 0;
+    animation: petal-fall 5.5s linear infinite;
+}
+.petals i:nth-child(1) { left: 12%; background: #c9c4b8; }
+.petals i:nth-child(2) { left: 28%; background: #111;    animation-delay: 0.9s;  animation-duration: 6.5s; }
+.petals i:nth-child(3) { left: 46%; background: #8a8577; animation-delay: 1.8s; }
+.petals i:nth-child(4) { left: 62%; background: #c9c4b8; animation-delay: 2.7s; animation-duration: 6s; }
+.petals i:nth-child(5) { left: 78%; background: #111;    animation-delay: 3.6s; }
+.petals i:nth-child(6) { left: 90%; background: #8a8577; animation-delay: 4.5s; animation-duration: 7s; }
+@keyframes petal-fall {
+    0%   { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+    8%   { opacity: 0.5; }
+    50%  { transform: translate(18px, 50vh) rotate(160deg); }
+    100% { opacity: 0.08; transform: translate(-6px, 104vh) rotate(320deg); }
+}
+.done-check { margin-bottom: 22px; }
+.done-check path {
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: draw-check 0.6s ease forwards 0.2s;
+}
+@keyframes draw-check { to { stroke-dashoffset: 0; } }
+
+#screen-done .make-btn { max-width: 320px; }
+#done-summary { margin-bottom: 6px; }
+
+h2 {
+    font-family: var(--serif);
+    font-size: 40px;
+    font-weight: 400;
+    letter-spacing: 8px;
+    margin-bottom: 16px;
+}
+
+/* ===== 토스트 알림 (alert() 팝업 대신, 화면 안에서 자연스럽게 뜨는 안내) ===== */
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 32px;
+    transform: translateX(-50%) translateY(14px);
+    max-width: 88%;
+    padding: 15px 28px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 14.5px;
+    letter-spacing: 1px;
+    text-align: center;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+.toast.error { background: var(--error); }
+
+/* ===== 반응형 ===== */
+@media (max-width: 900px) {
+    .screen { padding: 24px; }
+    .brand-title { font-size: 44px; letter-spacing: 12px; margin-left: 12px; }
+    .slogan { font-size: 17px; letter-spacing: 8px; margin-left: 8px; }
+    h2 { font-size: 28px; letter-spacing: 4px; }
+    .note-row { grid-template-columns: 1fr; }
+    .note-label { padding: 20px 0 8px; }
+    .choice-card { border-left: none; border-top: 1px solid var(--line); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hero-anim *, .touch-hint, .petals i,
+    .card, .slot, .screen.active, .loading-dots span, .done-check path { animation: none !important; }
+    .card, .slot { opacity: 1; }
+    .done-check path { stroke-dashoffset: 0; }
+}

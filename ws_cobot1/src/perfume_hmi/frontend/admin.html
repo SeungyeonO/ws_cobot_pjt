@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>조향 로봇 관리자 HMI</title>
+    <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+    <!-- 상단 바: 타이틀 + 로봇 연결 상태 + 현재 시각 -->
+    <header class="topbar">
+        <h1>조향 로봇 관리자 <span class="sub">M0609 · dsr01</span></h1>
+        <div class="topbar-right">
+            <span id="conn-badge" class="badge off">연결 확인 중...</span>
+            <span id="clock" class="clock"></span>
+            <!-- 키오스크는 다른 PC에서 실행되므로(perfume_kiosk), 배포 시 아래 주소를
+                 실제 키오스크 PC의 IP로 바꿔야 한다. -->
+            <a href="http://<KIOSK-PC-IP>:5000/" class="back-link">키오스크로 →</a>
+            <button id="btn-logout" class="back-link logout-btn" type="button">로그아웃</button>
+        </div>
+    </header>
+
+    <main class="grid">
+        <!-- 1. 로봇 상태 (조인트 각도) -->
+        <section class="panel">
+            <h2>로봇 상태</h2>
+            <div class="joints" id="joints">
+                <!-- J1~J6 값은 admin.js가 채움 -->
+            </div>
+            <p class="panel-note">조인트 스트림 기준 연결 판정 (2초 이상 미수신 시 끊김)</p>
+        </section>
+
+        <!-- 2. 제조 현황 -->
+        <section class="panel">
+            <h2>제조 현황</h2>
+            <div id="making-state" class="making-state idle">대기 중</div>
+            <div id="making-detail" class="making-detail"></div>
+            <div id="last-job" class="last-job"></div>
+        </section>
+
+        <!-- 3. 제어 -->
+        <section class="panel">
+            <h2>제어</h2>
+            <button id="btn-estop" class="btn estop">비상 정지<span class="btn-sub">E-STOP</span></button>
+            <div class="btn-row">
+                <button id="btn-home" class="btn secondary">홈 복귀</button>
+                <button id="btn-lock" class="btn secondary">키오스크 잠금</button>
+            </div>
+            <p id="control-msg" class="control-msg"></p>
+        </section>
+
+        <!-- 4. 에러 로그 -->
+        <section class="panel panel-wide">
+            <h2>에러 로그 <span class="sub">최근 20건</span></h2>
+            <ul id="error-list" class="error-list">
+                <li class="empty">기록된 에러가 없습니다.</li>
+            </ul>
+        </section>
+    </main>
+
+    <script src="admin.js"></script>
+</body>
+</html>

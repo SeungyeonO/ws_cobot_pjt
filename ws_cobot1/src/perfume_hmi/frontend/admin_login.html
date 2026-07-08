@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>관리자 로그인</title>
+    <link rel="stylesheet" href="admin.css" />
+</head>
+<body class="login-body">
+    <div class="login-card">
+        <h1>관리자 로그인</h1>
+        <p class="login-sub">조향 로봇 관리자 HMI · M0609</p>
+        <!-- inputmode=numeric: 터치 기기에서 숫자 키패드가 뜨게 -->
+        <input id="pin" type="password" inputmode="numeric" autocomplete="off"
+               placeholder="PIN 입력" maxlength="12" autofocus />
+        <button id="btn-login" class="btn login-btn">로그인</button>
+        <p id="login-msg" class="login-msg"></p>
+        <!-- 키오스크는 다른 PC에서 실행되므로(perfume_kiosk), 배포 시 아래 주소를
+             실제 키오스크 PC의 IP로 바꿔야 한다. -->
+        <a href="http://<KIOSK-PC-IP>:5000/" class="back-link">키오스크로 →</a>
+    </div>
+
+    <script>
+      // PIN을 POST로 보내고, 성공하면 /admin을 다시 열어 HMI 페이지를 받는다.
+      const pin = document.getElementById("pin");
+      const msg = document.getElementById("login-msg");
+
+      async function login() {
+        msg.textContent = "";
+        try {
+          const res = await fetch("/api/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: pin.value }),
+          });
+          const r = await res.json();
+          if (res.ok && r.status === "success") {
+            window.location.href = "/admin";
+          } else {
+            msg.textContent = r.message || "로그인에 실패했습니다.";
+            pin.value = "";
+            pin.focus();
+          }
+        } catch (e) {
+          msg.textContent = "서버와 통신하지 못했습니다.";
+        }
+      }
+
+      document.getElementById("btn-login").addEventListener("click", login);
+      pin.addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+    </script>
+</body>
+</html>

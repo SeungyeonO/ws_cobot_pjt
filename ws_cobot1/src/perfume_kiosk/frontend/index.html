@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>오늘의 향수</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <!-- 1. 시작 화면 -->
+    <section id="screen-start" class="screen active">
+        <!-- 관리자 숨김 진입: 오른쪽 위 모서리를 3초 길게 누르면 /admin 이동 (직원용) -->
+        <div id="admin-hotspot" class="admin-hotspot" aria-hidden="true"></div>
+        <div class="start-inner">
+            <!-- 브랜드 로고 마크 (향수병 + 스프레이 방울) -->
+            <div class="hero-anim" aria-hidden="true">
+                <svg viewBox="0 0 200 200" width="170" height="170">
+                    <!-- 스프레이 방울 -->
+                    <g class="logo-bubbles" fill="#111">
+                        <circle class="bub" cx="140" cy="36" r="7" />
+                        <circle class="bub" cx="160" cy="24" r="4" />
+                        <circle class="bub" cx="154" cy="56" r="5" />
+                        <circle class="bub" cx="172" cy="46" r="3" />
+                        <circle class="bub" cx="164" cy="72" r="2.5" />
+                    </g>
+                    <!-- 캡 · 넥 -->
+                    <rect x="76" y="20" width="46" height="24" rx="2" fill="#111" />
+                    <rect x="90" y="44" width="18" height="12" fill="#111" />
+                    <!-- 병 -->
+                    <rect x="58" y="56" width="82" height="90" rx="10" fill="none" stroke="#111" stroke-width="6" />
+                    <!-- 방울 -->
+                    <path class="logo-drop"
+                          d="M99 76 C 99 76 83 100 83 113 A 16 16 0 0 0 115 113 C 115 100 99 76 99 76 Z"
+                          fill="none" stroke="#111" stroke-width="5" />
+                </svg>
+            </div>
+            <h1 class="brand-title">오늘의 향수</h1>
+            <div class="divider" aria-hidden="true"></div>
+            <p class="slogan">오늘을 조향하다</p>
+            <p class="hint touch-hint">화면을 터치하여 시작하세요</p>
+        </div>
+    </section>
+
+    <!-- 2. 메인 조향 화면 -->
+    <section id="screen-main" class="screen">
+        <header class="app-header">
+            <span class="brand-dot"></span>오늘의 향수
+            <button id="header-home" class="header-home" type="button">처음으로</button>
+        </header>
+        <nav class="tabs">
+            <button class="tab active" data-tab="tab-recommend">오늘의 추천</button>
+            <button class="tab" data-tab="tab-custom">나만의 조합</button>
+            <button class="tab" data-tab="tab-free">내맘대로</button>
+        </nav>
+
+        <!-- Tab 1: 오늘의 추천 -->
+        <div id="tab-recommend" class="tab-panel active">
+            <div id="recipe-cards" class="cards"></div>
+        </div>
+
+        <!-- Tab 2: 나만의 조합 -->
+        <div id="tab-custom" class="tab-panel">
+            <p class="free-guide">선택한 향료는 종류당 <b>2샷</b>씩 담깁니다.
+                <span class="unit-note">1샷 = 향료 1회 토출</span></p>
+            <div class="note-layout" id="custom-layers"></div>
+            <button class="make-btn" data-mode="custom">제조하기</button>
+        </div>
+
+        <!-- Tab 3: 내맘대로 -->
+        <div id="tab-free" class="tab-panel">
+            <div class="free-hero">
+                <svg class="free-leaf" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                    <path d="M3 21 Q 3 5 21 3 Q 19 19 3 21 z" fill="none" stroke="#111" stroke-width="1.6"/>
+                </svg>
+                <p class="free-tagline">오늘의 향을 당신의 손으로 자유롭게 그려보세요</p>
+            </div>
+            <p class="free-guide">최대 <b>6샷</b>까지 담을 수 있습니다.
+                <span class="free-counter" id="free-counter">(현재 <span id="free-total">0</span>/6샷)</span>
+                <span class="unit-note">1샷 = 향료 1회 토출</span></p>
+            <p class="free-error" id="free-error" hidden>최대 6샷을 넘었습니다. 샷 수를 줄여주세요.</p>
+            <div class="slots" id="free-slots"></div>
+            <button class="make-btn" data-mode="free">제조하기</button>
+        </div>
+    </section>
+
+    <!-- 5. 제조중 화면 -->
+    <section id="screen-making" class="screen">
+        <div id="making-anim" class="hero-anim making-anim" aria-hidden="true"></div>
+        <h2>나만의 디퓨저 제조중<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></h2>
+        <p class="hint">로봇이 향을 조합하고 있습니다</p>
+    </section>
+
+    <!-- 6. 완료 화면 -->
+    <section id="screen-done" class="screen">
+        <div class="petals" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <svg class="done-check" viewBox="0 0 64 64" width="76" height="76" aria-hidden="true">
+            <circle cx="32" cy="32" r="30" fill="none" stroke="#111" stroke-width="2" />
+            <path d="M20 33 l8 8 16 -17" fill="none" stroke="#111" stroke-width="4"
+                  stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <h2>나만의 향이 완성되었습니다</h2>
+        <p id="done-summary" class="hint"></p>
+        <button id="home-btn" class="make-btn">처음으로</button>
+        <p class="hint small">10초 후 자동으로 처음 화면으로 돌아갑니다.</p>
+    </section>
+
+    <!-- 7. 점검 중 화면 (관리자가 키오스크를 잠갔을 때) -->
+    <section id="screen-maintenance" class="screen">
+        <svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true">
+            <path d="M14.7 6.3a4.2 4.2 0 0 0-5.6 5.2L4 16.6 a1.6 1.6 0 0 0 0 2.3 l1.1 1.1 a1.6 1.6 0 0 0 2.3 0 l5.1-5.1 a4.2 4.2 0 0 0 5.2-5.6 l-2.6 2.6 -2.3-.6 -.6-2.3 z"
+                  fill="none" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/>
+        </svg>
+        <h2>잠시 점검 중입니다</h2>
+        <p class="hint">향료를 보충하고 있어요. 잠시 후 다시 이용해주세요.</p>
+    </section>
+
+    <!-- alert() 팝업 대신 쓰는 토스트 알림 (모든 화면 위에 겹쳐 뜸) -->
+    <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

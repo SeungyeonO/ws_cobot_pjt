@@ -1,0 +1,2 @@
+[console_scripts]
+perfume_kiosk = perfume_kiosk.app:main
