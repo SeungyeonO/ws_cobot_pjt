@@ -1,0 +1,13 @@
+# Request
+
+int8 scent1
+int8 scent2
+int8 scent3
+int8 scent4
+int8 scent5
+int8 scent6
+
+---
+# Response
+
+bool success
