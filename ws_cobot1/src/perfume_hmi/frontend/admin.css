@@ -61,6 +61,10 @@ body {
 .badge.on::before  { background: #7fc783; box-shadow: 0 0 6px #7fc783; }
 .badge.off { background: rgba(214, 69, 69, 0.15); color: #e07a7a; }
 .badge.off::before { background: #e07a7a; }
+.badge.idle { background: rgba(139, 147, 155, 0.15); color: var(--muted); }
+.badge.idle::before { background: var(--muted); }
+.badge.warn { background: rgba(217, 164, 65, 0.16); color: var(--amber); }
+.badge.warn::before { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
 
 /* ===== 패널 그리드 ===== */
 .grid {
@@ -85,6 +89,19 @@ body {
     text-transform: uppercase;
 }
 .panel h2 .sub { font-size: 12px; font-weight: 400; text-transform: none; }
+.h2-btn {
+    float: right;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+}
+.h2-btn:active { background: rgba(255, 255, 255, 0.06); color: var(--ink); }
 .panel-note { margin-top: 12px; font-size: 12px; color: var(--muted); }
 
 /* ===== 조인트 값 ===== */
@@ -107,14 +124,32 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+/* ===== 그리퍼 / TCP 힘 서브섹션 ===== */
+.subsection { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.subsection-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.sub-label { font-size: 13px; color: var(--muted); font-weight: 600; }
+.force-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.force-grid .joint .j-val { font-size: 15px; }
+
 /* ===== 제조 현황 ===== */
+.stat-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 22px;
+    margin-bottom: 12px;
+}
+.stat-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+
 .making-state {
     display: inline-block;
-    padding: 8px 18px;
-    border-radius: 8px;
-    font-size: 16px;
+    padding: 7px 16px;
+    border-radius: 999px;
+    font-size: 14px;
     font-weight: 700;
-    margin-bottom: 12px;
 }
 .making-state.idle   { background: rgba(139, 147, 155, 0.15); color: var(--muted); }
 .making-state.active { background: rgba(217, 164, 65, 0.16); color: var(--amber); animation: blink 1.6s ease-in-out infinite; }
@@ -136,19 +171,53 @@ body {
 .btn:active { transform: translateY(1px); filter: brightness(0.9); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-.btn.estop {
-    padding: 22px;
-    font-size: 22px;
-    letter-spacing: 4px;
-    color: #fff;
-    background: radial-gradient(circle at 50% 30%, var(--red), var(--red-dark));
-    border: 2px solid #e5807f;
-    box-shadow: 0 4px 16px rgba(214, 69, 69, 0.35);
-    margin-bottom: 12px;
+/* E-STOP 머시룸 버튼 — 노랑/검정 안전 링 + 볼록한 빨간 캡 */
+.estop-ring {
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    margin: 4px auto 16px;
+    background: repeating-conic-gradient(var(--amber) 0deg 18deg, #22262b 18deg 36deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
 }
-.btn.estop .btn-sub { display: block; font-size: 12px; letter-spacing: 6px; opacity: 0.8; margin-top: 4px; }
+.estop-btn {
+    width: 102px;
+    height: 102px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    background: radial-gradient(circle at 50% 32%, #e25c5c, var(--red) 55%, var(--red-dark));
+    box-shadow:
+        inset 0 5px 10px rgba(255, 255, 255, 0.28),
+        inset 0 -8px 14px rgba(0, 0, 0, 0.4),
+        0 4px 12px rgba(214, 69, 69, 0.5);
+    color: #fff;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 1px;
+    line-height: 1.3;
+    transition: transform 0.08s, box-shadow 0.08s;
+}
+.estop-btn:active {
+    transform: translateY(3px);
+    box-shadow: inset 0 5px 14px rgba(0, 0, 0, 0.5), 0 1px 4px rgba(214, 69, 69, 0.4);
+}
+.estop-sub { display: block; font-size: 10px; letter-spacing: 4px; opacity: 0.85; margin-top: 3px; }
 
-.btn-row { display: flex; gap: 10px; }
+/* 기능별 그룹 행 — 라벨 왼쪽, 컨트롤 오른쪽 (명판 스타일) */
+.ctl-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 2px;
+    border-top: 1px solid var(--line);
+}
+.ctl-label { font-size: 13px; color: var(--muted); font-weight: 600; letter-spacing: 1px; }
+
 .btn.secondary {
     padding: 14px;
     font-size: 15px;
@@ -156,7 +225,56 @@ body {
     border: 1px solid var(--line);
     color: var(--ink);
 }
-.btn.secondary.locked { background: rgba(217, 164, 65, 0.16); border-color: var(--amber); color: var(--amber); }
+.ctl-home { width: auto; padding: 10px 26px; font-size: 14px; }
+
+/* 세그먼트 컨트롤 — 현재 상태가 켜진 칸으로 표시되고, 원하는 칸을 눌러 전환 */
+.seg {
+    display: inline-flex;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    overflow: hidden;
+}
+.seg-btn {
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+.seg-btn + .seg-btn { border-left: 1px solid var(--line); }
+.seg-btn:active { background: rgba(255, 255, 255, 0.08); }
+.seg-btn.active { background: rgba(88, 160, 92, 0.2); color: #7fc783; box-shadow: inset 0 0 8px rgba(88, 160, 92, 0.25); }
+.seg-btn.warn.active { background: rgba(217, 164, 65, 0.18); color: var(--amber); box-shadow: inset 0 0 8px rgba(217, 164, 65, 0.25); }
+
+/* 토글 스위치 — 키오스크 잠금 */
+.switch { position: relative; display: inline-block; width: 54px; height: 30px; cursor: pointer; }
+.switch input { display: none; }
+.switch-track {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    transition: background 0.15s, border-color 0.15s;
+}
+.switch-knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--muted);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+    transition: left 0.15s, background 0.15s;
+}
+.switch input:checked + .switch-track { background: rgba(217, 164, 65, 0.28); border-color: var(--amber); }
+.switch input:checked + .switch-track .switch-knob { left: 27px; background: var(--amber); }
 
 .control-msg { margin-top: 12px; font-size: 13px; min-height: 18px; color: var(--muted); }
 .control-msg.ok { color: #7fc783; }

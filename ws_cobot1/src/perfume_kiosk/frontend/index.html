@@ -104,6 +104,19 @@
         <p class="hint small">10초 후 자동으로 처음 화면으로 돌아갑니다.</p>
     </section>
 
+    <!-- 6-1. 제조 실패 화면 (로봇이 제조 실패 신호 false를 보낸 경우) -->
+    <section id="screen-failed" class="screen">
+        <svg class="failed-x" viewBox="0 0 64 64" width="76" height="76" aria-hidden="true">
+            <circle cx="32" cy="32" r="30" fill="none" stroke="#111" stroke-width="2" />
+            <path d="M22 22 L42 42 M42 22 L22 42" fill="none" stroke="#111" stroke-width="4"
+                  stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <h2>제조에 실패했습니다</h2>
+        <p id="failed-message" class="hint"></p>
+        <button id="failed-home-btn" class="make-btn">처음으로</button>
+        <p class="hint small">10초 후 자동으로 처음 화면으로 돌아갑니다.</p>
+    </section>
+
     <!-- 7. 점검 중 화면 (관리자가 키오스크를 잠갔을 때) -->
     <section id="screen-maintenance" class="screen">
         <svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true">

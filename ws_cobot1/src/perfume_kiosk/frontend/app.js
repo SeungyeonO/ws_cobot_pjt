@@ -352,6 +352,8 @@ async function submitPerfume(payload) {
       showDone(result);
     } else if (res.status === 503) {
       enterMaintenance(); // 주문 도중 관리자가 키오스크를 잠근 경우
+    } else if (result.robot_failed) {
+      showFailed(result.message); // 로봇이 제조 실패 신호(false)를 보낸 경우
     } else {
       showScreen("screen-main");
       showToast(result.message || "제조에 실패했습니다.");
@@ -377,6 +379,16 @@ function showDone(result) {
   doneTimer = setTimeout(goHome, 10000);
 }
 
+// ===== 제조 실패 화면 + 10초 자동 리다이렉트 =====
+function showFailed(message) {
+  document.getElementById("failed-message").textContent =
+    message || "로봇이 제조에 실패했습니다. 잠시 후 다시 시도해주세요.";
+  showScreen("screen-failed");
+
+  clearTimeout(doneTimer);
+  doneTimer = setTimeout(goHome, 10000);
+}
+
 function goHome() {
   clearTimeout(doneTimer);
   // 상태 초기화 — 다음 손님이 이전 손님의 흔적을 보지 않도록 전부 되돌린다
@@ -395,6 +407,7 @@ function goHome() {
 }
 
 document.getElementById("home-btn").addEventListener("click", goHome);
+document.getElementById("failed-home-btn").addEventListener("click", goHome);
 document.getElementById("header-home").addEventListener("click", goHome);
 
 // ===== 초기화 =====

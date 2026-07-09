@@ -8,10 +8,13 @@
   HTTP로. admin이 키오스크를 잠그면 여기로 반영된다.
 - 로봇 제어부 주문 서비스: 실제 제조(dispense) 요청은 ROS2 서비스로 직접
   보낸다. 로봇 네임스페이스 없이 서비스 이름 "/order_perfume", 타입
-  perfume_order_srv/srv/Order (scent1~scent6 샷 수 요청 → success 응답).
-  Flask(werkzeug) 개발 서버는 동기식이라 ROS2 spin은 전용 백그라운드
-  스레드에서 돌리고(init_ros), order_perfume()은 call_async 후
-  future.done()을 폴링해 블로킹 호출처럼 동작하게 만든다.
+  perfume_order_srv/srv/Order (scent1~scent6 샷 수 요청).
+  제조 완료 여부는 서비스 응답(success)이 아니라 별도 토픽
+  ORDER_DONE_TOPIC(std_msgs/Bool)으로 true가 오면 끝난 것으로 판정한다.
+  ROS2 통신(노드·서비스 클라이언트·완료 토픽 구독·spin 스레드)은
+  RobotOrderClient 클래스 하나에 묶여 있다. Flask(werkzeug) 개발 서버는
+  동기식이라 spin은 전용 백그라운드 스레드에서 돌리고, order()는 서비스로
+  주문만 전달한 뒤 완료 토픽 이벤트를 기다려 블로킹 호출처럼 동작한다.
 
 - GET  /api/recipes        추천 조합 목록 (SQLite3 동적 로드)
 - POST /api/make_perfume   제조 요청 (배율/횟수 계산 후 /order_perfume 호출)
@@ -23,10 +26,10 @@
   - HMI_BASE_URL, HMI_API_KEY: perfume_hmi 쪽 값과 반드시 동일해야 함
 
 [제조 흐름 요약]
-프론트 "제조하기" 클릭 → POST /api/make_perfume → order_perfume()이
-/order_perfume ROS2 서비스를 호출해 로봇이 실제로 다 만들 때까지 블로킹 →
-그 결과를 JSON으로 돌려준다. 프론트는 이 fetch가 끝날 때까지 '제조중' 화면을
-유지하기만 하면 된다.
+프론트 "제조하기" 클릭 → POST /api/make_perfume → RobotOrderClient.order()가
+/order_perfume ROS2 서비스로 주문을 전달 → 로봇이 제조를 마치고
+ORDER_DONE_TOPIC으로 true를 publish할 때까지 블로킹 → 그 결과를 JSON으로
+돌려준다. 프론트는 이 fetch가 끝날 때까지 '제조중' 화면을 유지하기만 하면 된다.
 
 [실행] pip로 설치하지만 /order_perfume 호출을 위해 ROS2(rclpy)와
 perfume_order_srv 인터페이스가 필요하다 — 먼저 perfume_order_srv를
@@ -40,7 +43,6 @@ import atexit
 import os
 import sqlite3
 import threading
-import time
 from pathlib import Path
 
 import requests
@@ -48,6 +50,7 @@ import rclpy
 from flask import Flask, jsonify, request, send_from_directory
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from std_msgs.msg import Bool
 
 from perfume_order_srv.srv import Order
 
@@ -92,88 +95,102 @@ HMI_API_KEY = os.environ.get("HMI_API_KEY", "perfume-internal-key")  # perfume_h
 # 로봇 네임스페이스 없이 통신
 ORDER_SERVICE_NAME = "/order_perfume"
 
+# 제조 완료 신호 토픽 (std_msgs/Bool) — 로봇 제어부가 제조를 마치면 true를
+# publish한다. 로봇 쪽 퍼블리셔 토픽 이름과 반드시 동일해야 함.
+ORDER_DONE_TOPIC = "/perfume_done"
+
 # 로봇 물리 슬롯(밸브) 순서 — scent1~scent6과 1:1 고정 매핑.
 # 위 VALID_SCENTS(top/middle/base)와 항상 동일하게 유지할 것.
 SCENT_SLOT_ORDER = ["Citrus", "Green", "Floral", "Woody", "Musk", "Amber"]
 
-POLL_INTERVAL_SEC = 0.1        # 응답 도착 여부를 확인하는 폴링 주기(초)
 ORDER_TIMEOUT_SEC = 310.0      # 실제 제조 시간(최대 5분 가정)보다 여유 있게
 
-# 모듈 전역 상태 — init_ros()에서 한 번만 채워진다.
-_node = None
-_executor = None
-_spin_thread = None
-_order_client = None
+class RobotOrderClient:
+    """로봇 제어부와의 ROS2 통신을 한 덩어리로 묶은 클라이언트.
 
-
-def init_ros():
-    """Flask 앱 시작 시 딱 한 번 호출한다. 이미 초기화되어 있으면 아무 것도 하지 않는다."""
-    global _node, _executor, _spin_thread, _order_client
-    if _node is not None:
-        return
-
-    rclpy.init()
-    _node = Node("perfume_kiosk_client")
-    _order_client = _node.create_client(Order, ORDER_SERVICE_NAME)
-
-    _executor = MultiThreadedExecutor()
-    _executor.add_node(_node)
-    # 서브 스레드에서 spin()을 돌려 Flask 개발 서버 블로킹될 시 ROS2 서비스 응답 가능하게
-    _spin_thread = threading.Thread(target=_executor.spin, daemon=True)
-    _spin_thread.start()
-
-    _node.get_logger().info(f"[perfume_kiosk] ROS2 준비 완료 ({ORDER_SERVICE_NAME} 클라이언트)")
-
-
-def shutdown_ros():
-    """Flask 앱 종료 시 ROS2 자원을 정리한다."""
-    global _node, _executor, _spin_thread, _order_client
-    if _executor is not None:
-        _executor.shutdown()
-    if _spin_thread is not None:
-        _spin_thread.join(timeout=2.0)
-    if _node is not None:
-        _node.destroy_node()
-    if _node is not None or _executor is not None:
-        rclpy.shutdown()
-    _node = _executor = _spin_thread = _order_client = None
-
-
-def _wait_future(future, timeout_sec):
-    """call_async future가 끝날 때까지 폴링 대기. 시간 초과 시 None 반환."""
-    waited = 0.0
-    while not future.done():
-        time.sleep(POLL_INTERVAL_SEC)
-        waited += POLL_INTERVAL_SEC
-        if waited >= timeout_sec:
-            future.cancel()
-            return None
-    return future.result()
-
-
-def order_perfume(plan):
-    """plan([{"scent": str, "shots": int}, ...])을 /order_perfume 요청으로 보낸다.
-
-    반환: {"success": bool, "message": str}
+    - /order_perfume 서비스: 주문 전달 (응답 success는 완료 판정에 쓰지 않음)
+    - ORDER_DONE_TOPIC 토픽: 제조 완료 신호(true) 수신
+    Flask 앱 시작 시 하나만 만들어(main() 참고) 서버가 켜져 있는 동안 재사용한다.
     """
-    if _order_client is None:
-        return {"success": False, "message": "ROS2가 초기화되지 않았습니다."}
-    if not _order_client.wait_for_service(timeout_sec=2.0):
-        return {"success": False,
-                "message": f"로봇 제어부 주문 서비스({ORDER_SERVICE_NAME})에 연결할 수 없습니다."}
 
-    shots_by_scent = {p["scent"]: p["shots"] for p in plan}
-    req = Order.Request()
-    for i, scent in enumerate(SCENT_SLOT_ORDER, start=1):
-        setattr(req, f"scent{i}", shots_by_scent.get(scent, 0))
+    def __init__(self): 
+        
+        # 클래스 내에서 ROS2 초기화, 노드 생성, 서비스 클라이언트 생성, 토픽 구독, spin 스레드 시작
+        
+        rclpy.init()
+        # 노드 생성
+        self._node = Node("perfume_kiosk_client")
+        # 서비스 클라이언트 생성
+        self._order_client = self._node.create_client(Order, ORDER_SERVICE_NAME)
+        # 제조 완료 신호 구독 — 콜백은 spin 스레드에서 실행된다.
+        self._done_sub = self._node.create_subscription(
+            Bool, ORDER_DONE_TOPIC, self._on_done, 10)
+        # 완료 신호 수신 이벤트 — 콜백(spin 스레드)이 set하고, order()(Flask 요청 스레드)가 wait한다.
+        # _done_result는 마지막으로 받은 신호 값 (true=제조 성공, false=제조 실패).
+        self._done_event = threading.Event()
+        self._done_result = False
 
-    _node.get_logger().info(f"[order] {ORDER_SERVICE_NAME} 호출: {plan}")
-    response = _wait_future(_order_client.call_async(req), ORDER_TIMEOUT_SEC)
-    if response is None:
-        return {"success": False, "message": "제조 요청이 시간 초과되었습니다."}
-    if not response.success:
-        return {"success": False, "message": "로봇 제어부가 제조에 실패했습니다."}
-    return {"success": True, "message": "제조 완료"}
+        # 동기화 / 병렬처리 세팅
+        self._executor = MultiThreadedExecutor()
+        self._executor.add_node(self._node)
+        # 서브 스레드에서 spin()을 돌려 Flask 개발 서버 블로킹될 시 ROS2 콜백 처리 가능하게
+        self._spin_thread = threading.Thread(target=self._executor.spin, daemon=True)
+        self._spin_thread.start()
+        # 문제 없을 시 ROS2 준비 완료 로그
+        self._node.get_logger().info(
+            f"[perfume_kiosk] ROS2 준비 완료 ({ORDER_SERVICE_NAME} 클라이언트, {ORDER_DONE_TOPIC} 구독)")
+
+    def _on_done(self, msg):
+        """ORDER_DONE_TOPIC 콜백 — true면 제조 성공, false면 제조 실패.
+
+        어느 쪽이든 신호가 온 것이므로 결과를 기록하고 wait 중인 스레드를 깨운다.
+        """
+        self._done_result = bool(msg.data)
+        self._done_event.set()
+
+    def order(self, plan):
+        """향료별 샷 수 계획(plan)을 서비스로 전달하고, 제조 결과는
+        ORDER_DONE_TOPIC으로 true(성공)/false(실패)가 publish될 때까지 기다려 판정한다.
+
+        성공하면 {"success": True, "message": "제조 완료"}, 실패하면 {"success": False, "message": "..."}
+        (로봇이 false를 보낸 실패는 "robot_failed": True가 함께 담긴다.)
+        """
+        if not self._order_client.wait_for_service(timeout_sec=2.0):
+            return {"success": False,
+                    "message": f"로봇 제어부 주문 서비스({ORDER_SERVICE_NAME})에 연결할 수 없습니다."}
+
+        shots_by_scent = {p["scent"]: p["shots"] for p in plan}
+        req = Order.Request()
+        for i, scent in enumerate(SCENT_SLOT_ORDER, start=1):
+            setattr(req, f"scent{i}", shots_by_scent.get(scent, 0))
+
+        # 이전 주문의 완료 신호가 남아 있지 않도록 반드시 주문 전에 초기화한다.
+        self._done_event.clear()
+
+        # 서비스는 주문 전달 용도로만 호출한다 — 응답(success)은 완료 판정에 쓰지 않는다.
+        self._node.get_logger().info(f"[order] {ORDER_SERVICE_NAME} 호출: {plan}")
+        self._order_client.call_async(req)
+
+        # 주문 후 제조 완료 신호가 올 때까지 블로킹 — Flask 요청 스레드에서 wait()한다.
+        if not self._done_event.wait(timeout=ORDER_TIMEOUT_SEC):
+            return {"success": False,
+                    "message": f"제조 완료 신호({ORDER_DONE_TOPIC})가 시간 초과되었습니다."}
+        if not self._done_result:
+            # 로봇이 false를 publish — 제조 도중 실패 (프론트가 실패 화면을 띄운다)
+            return {"success": False, "robot_failed": True,
+                    "message": "로봇이 제조에 실패했습니다. 잠시 후 다시 시도해주세요."}
+        return {"success": True, "message": "제조 완료"}
+
+    def shutdown(self):
+        """Flask 앱 종료 시 ROS2 자원을 정리한다."""
+        self._executor.shutdown()
+        self._spin_thread.join(timeout=2.0)
+        self._node.destroy_node()
+        rclpy.shutdown()
+
+
+# 앱 전체에서 하나만 쓰는 로봇 클라이언트 — main()에서 생성된다.
+_robot = None
 
 
 # ==============================================================
@@ -334,11 +351,14 @@ def kiosk_status():
 @app.route("/api/make_perfume", methods=["POST"])
 def make_perfume():
     data = request.get_json(silent=True)
+    
+    # 요청 형식 검증
     if not data or "mode" not in data:
         return jsonify({"status": "error", "message": "잘못된 요청 형식입니다."}), 400
 
     mode = data["mode"]
 
+    # 사용자 모드 선택에 따라 제조 계획(plan)을 계산한다.
     if mode == "recommend":
         recipe_id = data.get("recipe_id")
         if recipe_id is None:
@@ -359,20 +379,24 @@ def make_perfume():
 
     else:
         return jsonify({"status": "error", "message": f"알 수 없는 모드: {mode}"}), 400
-
+    # 선택 향료 없을 시
     if not plan:
         return jsonify({"status": "error", "message": "선택된 향료가 없습니다."}), 400
 
+    # 총 샷 수 검증 — '내맘대로' 모드만 제한, 나머지는 DB/고정값
     total = sum(p["shots"] for p in plan)
     if total > FREE_MAX_SHOTS and mode == "free":
         return jsonify({"status": "error",
                         "message": f"총 토출 횟수는 최대 {FREE_MAX_SHOTS}샷까지 가능합니다."}), 400
 
-    # 실제 제조는 로봇 제어부의 ROS2 서비스(/order_perfume)에 위임 — 응답이
-    # 올 때까지 블로킹된다 (order_perfume() 참고).
-    result = order_perfume(plan)
+    # 실제 제조는 로봇 제어부의 ROS2 서비스(/order_perfume)에 위임 — 완료 신호
+    # 토픽(ORDER_DONE_TOPIC)으로 true가 올 때까지 블로킹된다 (RobotOrderClient.order() 참고).
+    if _robot is None:
+        return jsonify({"status": "error", "message": "ROS2가 초기화되지 않았습니다."}), 502
+    result = _robot.order(plan)
     if not result["success"]:
-        return jsonify({"status": "error", "message": result["message"]}), 502
+        return jsonify({"status": "error", "message": result["message"],
+                        "robot_failed": result.get("robot_failed", False)}), 502
 
     return jsonify({
         "status": "success",
@@ -383,13 +407,14 @@ def make_perfume():
 
 
 def main():
+    global _robot
     if not os.path.exists(DB_PATH):
         init_db()
 
-    # 서버가 켜져 있는 동안 계속 쓸 ROS2 노드를 한 번만 초기화하고,
+    # 서버가 켜져 있는 동안 계속 쓸 로봇 클라이언트를 한 번만 만들고,
     # 프로세스가 종료될 때(atexit) 정리한다.
-    init_ros()
-    atexit.register(shutdown_ros)
+    _robot = RobotOrderClient()
+    atexit.register(_robot.shutdown)
 
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     app.run(host="0.0.0.0", port=5000, debug=debug, threaded=True)
