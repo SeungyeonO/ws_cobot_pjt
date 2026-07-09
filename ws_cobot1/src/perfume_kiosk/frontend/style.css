@@ -506,8 +506,11 @@ button { font-family: inherit; }
     color: #fff9f3;
     border: none;
     border-radius: 999px;
-    font-size: 18px;
-    letter-spacing: 5px;
+    font-family: var(--serif);
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: 6px;
+    text-indent: 6px; /* letter-spacing이 마지막 글자 뒤에도 붙어 좌우 균형이 어긋나는 것 보정 */
     cursor: pointer;
     box-shadow: 0 6px 18px rgba(179, 113, 78, 0.28);
     transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
@@ -591,6 +594,14 @@ button { font-family: inherit; }
 
 #screen-done .make-btn { max-width: 320px; }
 #done-summary { margin-bottom: 6px; }
+
+/* 완성 향수 픽업 안내 — 완료 화면에서 가장 먼저 읽혀야 하는 행동 안내 */
+.pickup-note {
+    font-family: var(--serif);
+    font-size: 22px;
+    letter-spacing: 3px;
+    margin: 14px 0 6px;
+}
 
 /* ===== 제조 실패 화면 ===== */
 .failed-x { margin-bottom: 22px; }

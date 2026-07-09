@@ -111,7 +111,7 @@ _robot_status = {
     "tool_force": [0.0] * 6,   # 최근 TCP 힘/토크 실측값 [Fx,Fy,Fz,Mx,My,Mz] (DR_BASE 기준)
     "speed_mode": None,        # 0=일반/1=감속, 아직 못 읽었으면 None
 }
-_error_log = deque(maxlen=ERROR_LOG_MAX)  # 최근 에러 목록 (최신이 앞)
+_error_log = deque(maxlen=ERROR_LOG_MAX)  # 최근 에러 목록 (최신이 앞) 20개 최대
 
 
 def init_ros():
@@ -146,6 +146,8 @@ def init_ros():
     for topic in JOINT_STATES_TOPICS:
         _node.create_subscription(JointState, topic, _joint_states_callback, 10)
     _node.create_subscription(RobotError, ROBOT_ERROR_TOPIC, _robot_error_callback, 10)
+    # robot_disconnection 이벤트는 ROS2에서 한 번만 발생하고, 재연결 시점은 알 수 없으므로
+    # 연결 여부 판단은 joint_states 수신 시각으로 한다. 다만 연결 �끊김 이벤트는 에러 로그에 기록해서 관리자가 볼 수 있게 한다.
     _node.create_subscription(
         RobotDisconnection, ROBOT_DISCONNECTION_TOPIC, _robot_disconnection_callback, 10
     )
@@ -305,13 +307,16 @@ def get_status():
     """관리자 화면이 1초마다 폴링하는 상태 스냅샷.
 
     연결 여부는 joint_states 스트림이 최근에 들어왔는지로 판단한다.
-    (연결 끊김 '이벤트' 토픽만으로는 재연결 시점을 알 수 없기 때문)
+    (연결 끊김 '이벤트' 토픽만으로는 재연결 시점을 알 수 없기 때문).
+    두산 공식 기능은 RobotDisconnection (연결 끊김)만 제공하고, 재연결 시점은 알 수 없다.
+    RobotDisconnection은 로그에 기록해서 관리자가 볼 수 있는 용으로 활용.
 
     주의: '제조 현황(making, 몇 번째 향료 중인지 등 세부 단계)'은 여기서 알 수
     없다 — 실제 제조는 별도 로봇 제어부 패키지(cobot_control)가 수행하기
     때문. 그 패키지가 제조 상태를 ROS2 토픽 등으로 공개하면 여기서 구독해
-    채워 넣을 수 있다 (TODO). 그리퍼 상태/TCP 힘은 로봇 드라이버 서비스를
-    직접 조회해 얻으므로 cobot_control과 무관하게 이미 채워져 있다.
+    채워 넣을 수 있다 (TODO). 
+    
+    그리퍼 상태/TCP 힘은 로봇 드라이버 서비스를 직접 조회해 얻으므로 cobot_control과 무관.
 
     이 함수는 ROS2를 새로 호출하지 않고 _robot_status/_error_log(구독
     콜백/폴링 콜백들이 이미 채워둔 값)를 그대로 스냅샷 떠서 반환할 뿐이다.
@@ -323,6 +328,7 @@ def get_status():
         last = _robot_status["last_joint_time"]
         status = {
             "robot": {
+                # 연결 여부 판단: joint_states 마지막 수신 시각이 최근이면 연결됨으로 간주
                 "connected": (now - last) < JOINT_STALE_SEC if last else False,
                 "joints_deg": list(_robot_status["joints_deg"]),
                 "gripper": _gripper_label(_robot_status["do1"], _robot_status["do2"]),
