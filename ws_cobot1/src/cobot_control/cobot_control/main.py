@@ -227,14 +227,6 @@ def main(args=None):
                 # controller.move_up(z=120) # shake 감안해서 50만큼 올라가기
                 controller.move_to_home()
                 wait(1.0)
-
-                # movel(
-                #     [0, 0, -100, 0, 0, 0],
-                #     vel=80,
-                #     acc=80,
-                #     ref=DR_TOOL,
-                #     mod=DR_MV_MOD_REL,
-                # )
                 
                 controller.shake_perfume(cycle=5)
                 
@@ -245,7 +237,7 @@ def main(args=None):
                 # ====== 픽업 공간에 pick&place =======
                 node.get_logger().info(f"📍➔📍 픽업장소으로 이동")
                 wait(1.0)
-                controller.move_to_pose(PICKUP_POSE, up=30, down=50)   # down값 조절
+                controller.move_to_pose(PICKUP_POSE, from_home=True, up=30, down=40)   # down값 조절
 
                 task_compliance_ctrl([300,300,300,200,200,200], 0)
                 wait(0.5)
