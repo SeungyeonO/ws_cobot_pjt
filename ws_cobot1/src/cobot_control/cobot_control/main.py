@@ -148,7 +148,12 @@ def main(args=None):
 
                         controller.move_down(z=18.7) # 뚜껑 위치로 이동
                         controller.grip()
+
+                        movej(posj([0,0,0,0,0,-45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
+
                         controller.move_up(z=18.7) # 내려간 만큼 올라가기
+
+                        movej(posj([0,0,0,0,0,45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
                         
                         node.get_logger().info("🦾 뚜껑 잡기 완료")
                         # =============================
@@ -176,7 +181,12 @@ def main(args=None):
 
                         controller.move_down(z=18.7) # 뚜껑 위치로 이동
                         controller.grip()
+
+                        movej(posj([0,0,0,0,0,-45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
+
                         controller.move_up(z=18.7) # 내려간 만큼 올라가기
+
+                        movej(posj([0,0,0,0,0,45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
                         
                         node.get_logger().info("🦾 뚜껑 잡기 완료")
                         # =============================

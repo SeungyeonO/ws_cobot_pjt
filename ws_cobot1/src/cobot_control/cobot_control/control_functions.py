@@ -32,7 +32,7 @@ SCENT5_POSE = posx([290,97,94,0,180,0])
 SCENT6_POSE = posx([370,97,94,0,180,0])
 PERFUME_POSE = posx([366.77,43.66,135.19,0,180,0])
 PERFUME_LID_POSE = posx([311.46,50.85,115.19,0,180,0])
-PICKUP_POSE = posx([525.12,50.86,135.10,0,180,0])
+PICKUP_POSE = posx([525.12,50.86,135.10,0,180,90])      # pick up 장소는 gripper를 90도 돌려서 놓음
 
 scent_positions = [SCENT1_POSE, SCENT2_POSE, SCENT3_POSE, SCENT4_POSE, SCENT5_POSE, SCENT6_POSE]
 
@@ -242,7 +242,39 @@ class RobotController:
 
     # ==========================================================
 
-    def move_to_pose(self, goal_pose, from_home=False, up=60, down=60, velocity=200, acceleration=60, radius=5):
+
+    # ===================== [추가] 자동 mid_pose 생성 함수 =====================
+    def make_auto_mid_pose(self, start_pose, goal_pose, z_offset=30):
+        mid_x = (start_pose[0] + goal_pose[0]) / 2
+        mid_y = (start_pose[1] + goal_pose[1]) / 2
+        mid_z = max(start_pose[2], goal_pose[2]) + z_offset
+
+        mid_pose = posx(
+            mid_x,
+            mid_y,
+            mid_z,
+            goal_pose[3],
+            goal_pose[4],
+            goal_pose[5]
+        )
+
+        self.node.get_logger().info(f"Auto mid pose: {mid_pose}")
+
+        return mid_pose
+    
+    # ===================== [수정] move_to_pose =====================
+    def move_to_pose(
+        self,
+        goal_pose,
+        from_home=False,
+        up=60,
+        down=60,
+        velocity=200,
+        acceleration=60,
+        radius=20,          # 향료-향수 사이 이동을 더 부드럽게 하기 위한 radius
+        goal_up_radius=5,   # goal_pose 위쪽은 정확히 찍을 필요 없으므로 5
+        mid_z_offset=30     # 자동 mid_pose 높이
+    ):
         self.node.get_logger().info(f"Moving to pose: {goal_pose}")
 
         current_pose = get_current_posx()[0]
@@ -268,15 +300,32 @@ class RobotController:
 
         if from_home:
             path = [
-                posb(DR_LINE, goal_pose, radius=radius), 
-                posb(DR_LINE, down_pose, radius=0)        
+                # goal_pose는 위쪽 기준점이라 radius=5 적용
+                posb(DR_LINE, goal_pose, radius=goal_up_radius),
+
+                # down_pose는 실제 작업 위치라 무조건 radius=0
+                posb(DR_LINE, down_pose, radius=0)
             ]
-        
+
         else:
+            mid_pose = self.make_auto_mid_pose(
+                start_pose=up_pose,
+                goal_pose=goal_pose,
+                z_offset=mid_z_offset
+            )
+
             path = [
-                posb(DR_LINE, up_pose, radius=radius),      # 현재 위치에서 위로 빠짐
-                posb(DR_LINE, goal_pose, radius=radius),    # 다음 향료병/향수병 위로 이동
-                posb(DR_LINE, down_pose, radius=0)          # 마지막은 정확히 멈추기
+                # 현재 위치에서 위로 빠짐
+                # 이 지점은 정확히 찍을 필요 없으므로 radius=20
+                posb(DR_LINE, up_pose, radius=radius),
+
+                # up_pose -> mid_pose -> goal_pose 곡선 이동
+                # moveb 안에서 movec 역할을 하는 DR_CIRCLE segment
+                # goal_pose 위쪽은 radius=5
+                posb(DR_CIRCLE, mid_pose, goal_pose, radius=goal_up_radius),
+
+                # down_pose는 실제 작업 위치라 무조건 radius=0
+                posb(DR_LINE, down_pose, radius=0)
             ]
 
         moveb(
@@ -285,3 +334,6 @@ class RobotController:
             acc=acceleration,
             ref=DR_BASE
         )
+
+    
+    # =============================================================

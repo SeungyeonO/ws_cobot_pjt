@@ -34,6 +34,7 @@ setup(
             'move_to_pose = function_test.move_to_pose:main',
             'diagonal_shake_test = function_test.diagonal_shake_test:main',
             'gripper_status = function_test.gripper_status:main',
+            'move = function_test.move:main'
         ],
     },
 )
