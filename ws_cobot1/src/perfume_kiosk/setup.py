@@ -1,27 +1,29 @@
-"""perfume_kiosk — 키오스크 PC용 pip 패키지.
+import os
+from glob import glob
 
-설치 (pip 패키지지만 /order_perfume 호출을 위해 rclpy·perfume_order_srv가
-필요하므로, perfume_order_srv를 colcon build 한 뒤 ROS2 환경을 source하고
-설치·실행한다):
-  source /opt/ros/humble/setup.bash
-  source <ws_cobot1>/install/setup.bash
-  cd src/perfume_kiosk
-  pip install -e .
-
-실행:
-  HMI_BASE_URL=http://<HMI-PC-IP>:5000 HMI_API_KEY=<키> perfume_kiosk
-"""
 from setuptools import find_packages, setup
 
+package_name = "perfume_kiosk"
+
 setup(
-    name="perfume_kiosk",
+    name=package_name,
     version="0.1.0",
     packages=find_packages(exclude=["test"]),
-    install_requires=["flask", "requests"],
-    description="조향 자동화 솔루션 키오스크 백엔드 (/order_perfume ROS2 서비스로 제조 요청)",
+    data_files=[
+        ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
+        ("share/" + package_name, ["package.xml"]),
+        (os.path.join("share", package_name, "frontend"), glob("frontend/*")),
+    ],
+    # schema.sql은 app.py와 같은 폴더에 있어야 하므로 (SCHEMA_PATH가 __file__ 기준)
+    # share가 아니라 파이썬 패키지 안에 함께 설치한다.
+    package_data={package_name: ["schema.sql"]},
+    install_requires=["setuptools"],
+    zip_safe=True,
     maintainer="jeongwan-ryu",
     maintainer_email="jeowryu@gmail.com",
+    description="조향 자동화 솔루션 키오스크 백엔드 (/order_perfume ROS2 서비스로 제조 요청)",
     license="Apache-2.0",
+    tests_require=["pytest"],
     entry_points={
         "console_scripts": [
             "perfume_kiosk = perfume_kiosk.app:main",

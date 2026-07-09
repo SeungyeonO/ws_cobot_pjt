@@ -31,13 +31,11 @@
 ORDER_DONE_TOPIC으로 true를 publish할 때까지 블로킹 → 그 결과를 JSON으로
 돌려준다. 프론트는 이 fetch가 끝날 때까지 '제조중' 화면을 유지하기만 하면 된다.
 
-[실행] pip로 설치하지만 /order_perfume 호출을 위해 ROS2(rclpy)와
-perfume_order_srv 인터페이스가 필요하다 — 먼저 perfume_order_srv를
-colcon build 한 뒤 아래 순서로 source하고 실행한다:
+[실행] perfume_hmi와 동일한 ament_python 패키지 — colcon build 후 ros2 run으로 실행한다:
   source /opt/ros/humble/setup.bash
+  cd <ws_cobot1> && colcon build --packages-select perfume_order_srv perfume_kiosk
   source <ws_cobot1>/install/setup.bash
-  pip install -e .
-  HMI_BASE_URL=http://<HMI-PC-IP>:5000 HMI_API_KEY=<키> perfume_kiosk
+  HMI_BASE_URL=http://<HMI-PC-IP>:5000 HMI_API_KEY=<키> ros2 run perfume_kiosk perfume_kiosk
 """
 import atexit
 import os
@@ -47,6 +45,7 @@ from pathlib import Path
 
 import requests
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from flask import Flask, jsonify, request, send_from_directory
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -54,18 +53,15 @@ from std_msgs.msg import Bool
 
 from perfume_order_srv.srv import Order
 
-# __file__ = 이 app.py 자신의 경로. perfume_hmi처럼 ament_index_python으로
-# "설치된 위치"를 찾을 ROS2 빌드시스템이 없으므로(순수 pip 패키지), __file__
-# 기준 상대경로로 직접 찾는다 — pip install -e .(editable install)면 실행
-# 위치(cwd)가 어디든 항상 소스 트리 안의 frontend/를 정확히 가리킨다.
-# .parent        = perfume_kiosk/perfume_kiosk/ (이 파일이 있는 패키지 폴더)
-# .parent.parent = perfume_kiosk/                (패키지 루트) → 그 아래 frontend/
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
-# schema.sql은 app.py와 같은 폴더(perfume_kiosk/perfume_kiosk/)에 있으므로 한 단계만 올라간다.
+# perfume_hmi와 동일하게 ament_index_python으로 "설치된 위치"의 share 폴더를
+# 찾는다 (setup.py data_files가 frontend/를 share/perfume_kiosk/frontend에 설치).
+PACKAGE_SHARE_DIR = get_package_share_directory("perfume_kiosk")
+FRONTEND_DIR = os.path.join(PACKAGE_SHARE_DIR, "frontend")
+# schema.sql은 setup.py package_data로 app.py와 같은 폴더에 설치되므로 __file__ 기준 그대로.
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 # DB는 소스 트리 밖, 홈 디렉터리 아래 별도 위치에 둔다 (ROS2 워크스페이스와 무관).
-# 코드(소스 트리)와 데이터(실행 중 쌓이는 상태)를 분리해서, pip install -e .를
+# 코드(소스 트리)와 데이터(실행 중 쌓이는 상태)를 분리해서, colcon build를
 # 다시 하거나 소스를 갱신해도 DB가 지워지지 않고 git에도 안 들어가게 한다.
 DB_DIR = os.path.expanduser("~/.perfume")
 DB_PATH = os.path.join(DB_DIR, "kiosk.db")
