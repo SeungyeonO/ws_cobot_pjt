@@ -1,10 +1,12 @@
 from DSR_ROBOT2 import (
         set_digital_output,
+        get_digital_input,
         task_compliance_ctrl,
         set_desired_force,
         release_force,
         release_compliance_ctrl,
         get_current_posx,
+        move_periodic,
         movej,
         movel,
         moveb,
@@ -43,21 +45,44 @@ class RobotController:
 
     def grip(self):
         self.node.get_logger().info("Grip: digital output 1 ON, 2 OFF")
-
+        # 1 0 0 >> grip(0mm, 40N)
         set_digital_output(1, OFF)
         set_digital_output(2, OFF)
+        set_digital_output(3, OFF)
         set_digital_output(1, ON)
         set_digital_output(2, OFF)
+        set_digital_output(3, OFF)
         wait(0.5)
 
     def release(self):
         self.node.get_logger().info("Release: digital output 1 OFF, 2 ON")
-
+        # 0 1 0 >> release(52mm, 40N)
         set_digital_output(1, OFF)
         set_digital_output(2, OFF)
+        set_digital_output(3, OFF)
         set_digital_output(1, OFF)
         set_digital_output(2, ON)
+        set_digital_output(3, OFF)
         wait(0.5)
+
+    # ======= 향수병 배치 안되어 있는 에러 처리를 위한 함수 =========
+    def check_perfume_bottle(self):
+        self.node.get_logger().info("📋 향수병 존재 여부 검사")
+        self.grip()
+        wait(0.5)
+
+        pin1 = get_digital_input(1)
+        pin2 = get_digital_input(2)
+        pin3 = get_digital_input(3)
+        
+        result = True
+
+        if not pin1 and pin2 and not pin3:
+            result = False
+        
+        self.release()
+        return result
+    # =======================================================
 
     def move_to_home(self, velocity=200, acceleration=60):
         homej = posj([0, 0, 90, 0, 90, 0])
@@ -142,12 +167,43 @@ class RobotController:
                 posb(DR_CIRCLE, posx(R, 0, 0, 0, 0, 0), posx(0, -R, 0, 0, 0, 0), radius=5),
                 posb(DR_CIRCLE, posx(-R, 0, 0, 0, 0, 0), posx(0, R, 0, 0, 0, 0), radius=5),
             ]
+        
 
         self.node.get_logger().info(f"🚀 Start Shaking Perfume: radius={R}, cycle={cycle}")
 
         moveb(circle_path, vel=120, acc=200, ref=DR_TOOL, mod=DR_MV_MOD_REL)
 
         self.node.get_logger().info("🙏 Finished Shaking Perfume")
+
+    
+    def shake_perfume2(self, tilt_angle=60, amp=30, repeat=2):
+        self.node.get_logger().info(f"🚀 Start Shaking Perfume2: tilt={tilt_angle}, shake={amp}, repeat={repeat}")
+
+        movel([0,0,0,0,tilt_angle,0], vel=80, acc=80, ref=DR_TOOL, mod=DR_MV_MOD_REL)
+        
+        wait(0.5)
+
+        self.node.get_logger().info(f"오른쪽으로 {repeat}번 흔듭니다.")
+        move_periodic(amp=[0,0,amp,0,0,0], period=0.6, atime=0.2, repeat=3, ref=DR_TOOL)
+
+        wait(0.5)
+
+        movel([0,0,0,0,-tilt_angle,0], vel=80, acc=80, ref=DR_TOOL, mod=DR_MV_MOD_REL)
+
+        wait(0.5)
+
+        movel([0,0,0,0,-tilt_angle,0], vel=80, acc=80, ref=DR_TOOL, mod=DR_MV_MOD_REL)
+
+        wait(0.5)
+
+        self.node.get_logger().info(f"왼쪽으로 {repeat}번 흔듭니다.")
+        move_periodic(amp=[0,0,amp,0,0,0], period=0.6, atime=0.2, repeat=repeat, ref=DR_TOOL)
+
+        wait(0.5)
+
+        movel([0,0,0,0,tilt_angle,0], vel=80, acc=80, ref=DR_BASE, mod=DR_MV_MOD_REL)
+
+        wait(0.5)
 
     # ==============  move_to_pose에서 활용할 함수 =================
 
@@ -183,35 +239,8 @@ class RobotController:
             mod=DR_MV_MOD_ABS,
         )
 
-    
-    def move_curve_to(self, goal_pose, mid_pose, velocity=300, acceleration=200, radius=50):
-        self.node.get_logger().info("Starting moveb curved trajectory")
-
-        b_list = [
-            # 현재 위치에서 X_mid로 이동하되,
-            # X_mid에서 radius만큼 블렌딩
-            posb(DR_LINE, mid_pose, radius=radius),
-
-            # X_mid를 거쳐 goal_pose로 이동
-            # 마지막 지점에서는 정확히 도착해야 하므로 radius=0
-            posb(DR_LINE, goal_pose, radius=0),
-        ]
-
-        moveb(
-            b_list,
-            vel=velocity,
-            acc=acceleration,
-            ref=DR_BASE,
-            mod=DR_MV_MOD_ABS,
-        )
-
-        self.node.get_logger().info("Moveb curved trajectory finished")
 
     # ==========================================================
-
-    # def move_to_pose(self, goal_pose, from_home=False, up=60, down=60, velocity=200, acceleration=60, radius=5):
-    #     self.node.get_logger().info(f"Moving to pose: {goal_pose}")
-    #     movel(goal_pose, vel=velocity, acc=acceleration, ref=DR_BASE, mod=DR_MV_MOD_REL)
 
     def move_to_pose(self, goal_pose, from_home=False, up=60, down=60, velocity=200, acceleration=60, radius=5):
         self.node.get_logger().info(f"Moving to pose: {goal_pose}")

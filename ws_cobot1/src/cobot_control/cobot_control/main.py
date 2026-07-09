@@ -32,6 +32,7 @@ def main(args=None):
             wait,
             DR_MV_MOD_REL,
             DR_BASE,
+            DR_TOOL
         )
 
         from DR_common2 import posj, posx
@@ -97,6 +98,20 @@ def main(args=None):
                 wait(1.0)
 
                 controller.move_to_pose(PERFUME_POSE, from_home=True, down=73, velocity=30, acceleration=30)
+
+                # ========== 향수병 배치 x 상황의 에러 처리 ============
+                if not controller.check_perfume_bottle():
+                    node.get_logger().info(f"❌ 향수병이 없습니다.")
+
+                    controller.move_to_home()
+
+                    done_msg = Bool()
+                    done_msg.data = False
+                    done_pub.publish(done_msg)
+
+                    continue
+                # =================================================
+                
                 controller.open_lid(cycle=3)
 
                 # ======= 뚜껑 보관함에 거치 ==============
@@ -186,7 +201,7 @@ def main(args=None):
 
                 node.get_logger().info(f"📍➔📍 향수병 위치로 이동")
                 wait(1.0)
-                controller.move_to_pose(PERFUME_POSE, up=65, down=68)
+                controller.move_to_pose(PERFUME_POSE, up=65, down=60)
                 controller.close_lid(cycle=3)
 
                 # ===== 뚜껑 부분 잡기 ==========
@@ -199,8 +214,23 @@ def main(args=None):
 
                 node.get_logger().info("🦾 향수병 뚜껑 잡기 완료")
                 # =============================
-                controller.move_up(z=120) # shake 감안해서 50만큼 올라가기
+                # controller.move_up(z=120) # shake 감안해서 50만큼 올라가기
+                controller.move_to_home()
+                wait(1.0)
+
+                # movel(
+                #     [0, 0, -100, 0, 0, 0],
+                #     vel=80,
+                #     acc=80,
+                #     ref=DR_TOOL,
+                #     mod=DR_MV_MOD_REL,
+                # )
+                
                 controller.shake_perfume(cycle=5)
+                
+                controller.shake_perfume2(tilt_angle=30, amp=20)
+
+                
 
                 # ====== 픽업 공간에 pick&place =======
                 node.get_logger().info(f"📍➔📍 픽업장소으로 이동")

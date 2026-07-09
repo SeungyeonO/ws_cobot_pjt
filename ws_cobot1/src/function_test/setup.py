@@ -32,6 +32,8 @@ setup(
             'mix_drawing_circle2 = function_test.mix_draw_circle2:main',
             'order_test = function_test.order_test:main',
             'move_to_pose = function_test.move_to_pose:main',
+            'diagonal_shake_test = function_test.diagonal_shake_test:main',
+            'gripper_status = function_test.gripper_status:main',
         ],
     },
 )
