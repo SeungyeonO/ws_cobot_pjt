@@ -97,7 +97,7 @@ def main(args=None):
                 node.get_logger().info(f"🔥 Start processing order: {order}")
                 wait(1.0)
 
-                controller.move_to_pose(PERFUME_POSE, from_home=True, down=73, velocity=30, acceleration=30)
+                controller.move_to_pose(PERFUME_POSE, from_home=True, down=103.58, velocity=30, acceleration=30)    # 향수병 상단 - 향수병 뚜껑
 
                 # ========== 향수병 배치 x 상황의 에러 처리 ============
                 if not controller.check_perfume_bottle():
@@ -118,7 +118,7 @@ def main(args=None):
                 node.get_logger().info("🔥 향수병 뚜껑 거치")
                 wait(1.0)
                 controller.grip()   # 열린 뚜껑 잡기
-                controller.move_to_pose(goal_pose=PERFUME_LID_POSE, up=73, down=50)
+                controller.move_to_pose(goal_pose=PERFUME_LID_POSE, up=103.58, down=116.2) # 향수 뚜껑 보관함 상단 - 향수 뚜껑 놓는 위치
                 controller.release()
                 # ======================================
 
@@ -131,12 +131,12 @@ def main(args=None):
                         node.get_logger().info(f"💧 scent{i+1}: {drop+1}/{drops} drops")
                         if first:
                             node.get_logger().info(f"📍➔📍 scent{i+1} 향료병으로 이동")
-                            wait(1.0)
-                            controller.move_to_pose(goal_pose=scent_pose, up=50, down=54)   # 향료병으로 이동
+                            wait(0.5)
+                            controller.move_to_pose(goal_pose=scent_pose, up=116.2, down=81.23)   # scent 상단 - 스포이드 위치
                         
                         # ===== 스포이드 용액 추출 =======
                         node.get_logger().info("🧪 향료 추출 시작")
-                        wait(1.0)
+                        wait(0.5)
                         controller.grip()
                         controller.release()
                         node.get_logger().info("🧪 향료 추출 완료")
@@ -144,14 +144,14 @@ def main(args=None):
                         
                         # ===== 뚜껑 부분 잡기 ==========
                         node.get_logger().info("🦾 뚜껑 잡기 시작")
-                        wait(1.0)
+                        wait(0.5)
 
-                        controller.move_down(z=18.7) # 뚜껑 위치로 이동
+                        controller.move_down(z=18.16) # 스포이드 - 뚜껑
                         controller.grip()
 
                         movej(posj([0,0,0,0,0,-45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
 
-                        controller.move_up(z=18.7) # 내려간 만큼 올라가기
+                        controller.move_up(z=18.16) # 내려간 만큼 올라가기
 
                         movej(posj([0,0,0,0,0,45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
                         
@@ -159,62 +159,65 @@ def main(args=None):
                         # =============================
 
                         node.get_logger().info(f"📍➔📍 향수병으로 이동")
-                        controller.move_to_pose(goal_pose=PERFUME_POSE, up=54, down=54) # 향수병으로 이동
-                        wait(1.0)
+                        controller.move_to_pose(goal_pose=PERFUME_POSE, up=81.23, down=100.58) # 향수병 상단 - 뚜껑 놓을 위치
+                        wait(0.5)
 
                         controller.release()
                         # ===== 스포이드 용액 투출 ========
+                        controller.move_up(z=16.16)
+
                         node.get_logger().info("🧪 향료 투출 시작")
-                        wait(1.0)
+                        wait(0.5)
 
                         controller.grip()
                         controller.release()
 
                         node.get_logger().info("🧪 향료 투출 완료")
+
                         # =============================
 
                         # ===== 뚜껑 부분 잡기 ==========
                         node.get_logger().info("🦾 뚜껑 잡기 시작")
-                        wait(1.0)
+                        wait(0.5)
 
-                        controller.move_down(z=18.7) # 뚜껑 위치로 이동
+                        controller.move_down(z=16.16) # 뚜껑 위치로 이동
                         controller.grip()
 
-                        movej(posj([0,0,0,0,0,-45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
+                        # movej(posj([0,0,0,0,0,-45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
 
-                        controller.move_up(z=18.7) # 내려간 만큼 올라가기
+                        controller.move_up(z=16.16) # 내려간 만큼 올라가기
 
-                        movej(posj([0,0,0,0,0,45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
+                        # movej(posj([0,0,0,0,0,45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
                         
                         node.get_logger().info("🦾 뚜껑 잡기 완료")
                         # =============================
 
                         node.get_logger().info(f"📍➔📍 scent{i+1} 향료병으로 이동")
-                        wait(1.0)
-                        controller.move_to_pose(goal_pose=scent_pose, up=54, down=54)
+                        wait(0.5)
+                        controller.move_to_pose(goal_pose=scent_pose, up=100.58, down=99.39)  # 향료 상단 - 뚜껑 놓을 위치
 
                         node.get_logger().info(f"✋ 뚜껑 놓기")
-                        wait(1.0)
+                        wait(0.5)
                         controller.release()
 
                         first = False
                 
                 node.get_logger().info(f"📍➔📍 향수병 뚜껑 거치대 위치로 이동")
-                wait(1.0)
+                wait(0.5)
 
                 # ================== 수정 필요 =================
-                controller.move_to_pose(PERFUME_LID_POSE, up=54, down=55)
+                controller.move_to_pose(PERFUME_LID_POSE, up=99.39, down=116.2)
                 controller.grip()   
                 # ============================================
 
                 node.get_logger().info(f"📍➔📍 향수병 위치로 이동")
-                wait(1.0)
-                controller.move_to_pose(PERFUME_POSE, up=65, down=60)
-                controller.close_lid(cycle=3)
+                wait(0.5)
+                controller.move_to_pose(PERFUME_POSE, up=116.2, down=100.58)    # 향수병 - 향수병 뚜껑 놓을 위치
+                controller.close_lid(cycle=4)
 
                 # ===== 뚜껑 부분 잡기 ==========
                 node.get_logger().info("🦾 향수병 뚜껑 잡기 시작")
-                wait(1.0)
+                wait(0.5)
 
                 # controller.move_down(z=18.7) # 뚜껑 위치로 이동
                 controller.grip()
@@ -222,9 +225,9 @@ def main(args=None):
 
                 node.get_logger().info("🦾 향수병 뚜껑 잡기 완료")
                 # =============================
-                # controller.move_up(z=120) # shake 감안해서 50만큼 올라가기
+                controller.move_up(z=70) # home pose 이동 전에 위로 올리기
                 controller.move_to_home()
-                wait(1.0)
+                wait(0.5)
                 
                 controller.shake_perfume(cycle=5)
                 
@@ -234,8 +237,8 @@ def main(args=None):
 
                 # ====== 픽업 공간에 pick&place =======
                 node.get_logger().info(f"📍➔📍 픽업장소으로 이동")
-                wait(1.0)
-                controller.move_to_pose(PICKUP_POSE, from_home=True, up=30, down=40)   # down값 조절
+                wait(0.5)
+                controller.move_to_pose(PICKUP_POSE, from_home=True, down=80)    # pickup 상단 - 힘제어 시작점
 
                 task_compliance_ctrl([300,300,300,200,200,200], 0)
                 wait(0.5)

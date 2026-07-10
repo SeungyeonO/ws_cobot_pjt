@@ -24,15 +24,15 @@ from DSR_ROBOT2 import (
 from DR_common2 import posj, posx, posb
 
 
-SCENT1_POSE = posx([336.37,-65.62,135.19,0,180,0])
-SCENT2_POSE = posx([370,7,94,0,180,0])
-SCENT3_POSE = posx([431.11,-66.15,135.19,0,180,0])
-SCENT4_POSE = posx([370,52,94,0,180,0])
-SCENT5_POSE = posx([290,97,94,0,180,0])
-SCENT6_POSE = posx([370,97,94,0,180,0])
-PERFUME_POSE = posx([366.77,43.66,135.19,0,180,0])
-PERFUME_LID_POSE = posx([311.46,50.85,115.19,0,180,0])
-PICKUP_POSE = posx([525.12,50.86,135.10,0,180,90])      # pick up 장소는 gripper를 90도 돌려서 놓음
+SCENT1_POSE = posx([337.810,-152.910,170.29,0,180,0])
+SCENT2_POSE = posx([426.810,-150.86,170.29,0,180,0])
+SCENT3_POSE = posx([337.19,-108.38,170.29,0,180,0])
+SCENT4_POSE = posx([427.4,-107.55,170.29,0,180,0])
+SCENT5_POSE = posx([336.31,-64.03,170.29,0,180,0])
+SCENT6_POSE = posx([426.14,-60.69,170.29,0,180,0])
+PERFUME_POSE = posx([340.2,63.81,209.73,0,180,0])
+PERFUME_LID_POSE = posx([417.49,65.49,209.73,0,180,0])
+PICKUP_POSE = posx([491.39,47.47,165.08,0,180,-90])      # pick up 장소는 gripper를 90도 돌려서 놓음
 
 scent_positions = [SCENT1_POSE, SCENT2_POSE, SCENT3_POSE, SCENT4_POSE, SCENT5_POSE, SCENT6_POSE]
 
@@ -44,8 +44,8 @@ class RobotController:
         self.node.get_logger().info("RobotController initialized")
 
     def grip(self):
-        self.node.get_logger().info("Grip: digital output 1 ON, 2 OFF")
-        # 1 0 0 >> grip(0mm, 40N)
+        self.node.get_logger().info("Grip: digital output 1 ON, 2 OFF, 3 OFF")
+        # 1 0 0 >> grip(0mm, 30N)
         set_digital_output(1, OFF)
         set_digital_output(2, OFF)
         set_digital_output(3, OFF)
@@ -54,9 +54,20 @@ class RobotController:
         set_digital_output(3, OFF)
         wait(0.5)
 
+    def smooth_grip(self):
+        self.node.get_logger().info("Grip: digital output 1 ON, 2 ON, 3 OFF")
+        # 1 1 0 >> grip(17mm, 20N)
+        set_digital_output(1, OFF)
+        set_digital_output(2, OFF)
+        set_digital_output(3, OFF)
+        set_digital_output(1, ON)
+        set_digital_output(2, ON)
+        set_digital_output(3, OFF)
+        wait(0.5)
+
     def release(self):
-        self.node.get_logger().info("Release: digital output 1 OFF, 2 ON")
-        # 0 1 0 >> release(52mm, 40N)
+        self.node.get_logger().info("Release: digital output 1 OFF, 2 ON, 3 OFF")
+        # 0 1 0 >> release(35mm, 30N)
         set_digital_output(1, OFF)
         set_digital_output(2, OFF)
         set_digital_output(3, OFF)
@@ -118,7 +129,7 @@ class RobotController:
         task_compliance_ctrl([3000,3000,500,200,200,200], 0)
         wait(0.5)
         print("힘제어 ON")
-        set_desired_force([0,0,-10,0,0,0], [0,0,1,0,0,0])
+        set_desired_force([0,0,-5,0,0,0], [0,0,1,0,0,0])
         print("set_desired_force 완료")
         wait(1.0)
         print("movel 하기 직전")
@@ -176,34 +187,30 @@ class RobotController:
         self.node.get_logger().info("🙏 Finished Shaking Perfume")
 
     
-    def shake_perfume2(self, tilt_angle=60, amp=30, repeat=2):
+    def shake_perfume2(self, tilt_angle=60, amp=30, repeat=3):
         self.node.get_logger().info(f"🚀 Start Shaking Perfume2: tilt={tilt_angle}, shake={amp}, repeat={repeat}")
 
         movel([0,0,0,0,tilt_angle,0], vel=80, acc=80, ref=DR_TOOL, mod=DR_MV_MOD_REL)
         
-        wait(0.5)
+        wait(0.2)
 
         self.node.get_logger().info(f"오른쪽으로 {repeat}번 흔듭니다.")
-        move_periodic(amp=[0,0,amp,0,0,0], period=0.6, atime=0.2, repeat=3, ref=DR_TOOL)
+        move_periodic(amp=[0,0,amp,0,0,0], period=0.5, atime=0.2, repeat=repeat, ref=DR_TOOL)
 
-        wait(0.5)
+        wait(0.2)
 
-        movel([0,0,0,0,-tilt_angle,0], vel=80, acc=80, ref=DR_TOOL, mod=DR_MV_MOD_REL)
+        movel([0,0,0,0,-2 * tilt_angle,0], vel=80, acc=80, ref=DR_TOOL, mod=DR_MV_MOD_REL)
 
-        wait(0.5)
-
-        movel([0,0,0,0,-tilt_angle,0], vel=80, acc=80, ref=DR_TOOL, mod=DR_MV_MOD_REL)
-
-        wait(0.5)
+        wait(0.2)
 
         self.node.get_logger().info(f"왼쪽으로 {repeat}번 흔듭니다.")
-        move_periodic(amp=[0,0,amp,0,0,0], period=0.6, atime=0.2, repeat=repeat, ref=DR_TOOL)
+        move_periodic(amp=[0,0,amp,0,0,0], period=0.5, atime=0.2, repeat=repeat, ref=DR_TOOL)
 
-        wait(0.5)
+        wait(0.2)
 
         movel([0,0,0,0,tilt_angle,0], vel=80, acc=80, ref=DR_BASE, mod=DR_MV_MOD_REL)
 
-        wait(0.5)
+        wait(0.2)
 
     # ==============  move_to_pose에서 활용할 함수 =================
 
@@ -269,10 +276,10 @@ class RobotController:
         from_home=False,
         up=60,
         down=60,
-        velocity=200,
+        velocity=150,
         acceleration=60,
-        radius=20,          # 향료-향수 사이 이동을 더 부드럽게 하기 위한 radius
-        goal_up_radius=5,   # goal_pose 위쪽은 정확히 찍을 필요 없으므로 5
+        radius=15,          # 향료-향수 사이 이동을 더 부드럽게 하기 위한 radius
+        goal_up_radius=3,   # goal_pose 위쪽은 정확히 찍을 필요 없으므로 5
         mid_z_offset=30     # 자동 mid_pose 높이
     ):
         self.node.get_logger().info(f"Moving to pose: {goal_pose}")
