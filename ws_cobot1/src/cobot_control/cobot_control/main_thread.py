@@ -2,6 +2,7 @@ import rclpy
 import DR_init
 from perfume_order_srv.srv import Order
 from std_msgs.msg import Bool
+from dsr_msgs2.srv import MoveStop
 
 
 ROBOT_ID   = "dsr01"
@@ -85,6 +86,55 @@ def main(args=None):
         "/perfume_done",
         10
     )
+
+    # ======== 비상 정지 시스템 ===================
+
+    move_stop_client = node.create_client(
+         MoveStop,
+         '/dsr01/motion/move_stop'
+    )
+
+    def request_sstop():
+        req = MoveStop.Request()
+        req.stop_mode = 0
+
+        move_stop_client.call_async(req)
+
+        print("stop!")
+
+        raise KeyboardInterrupt
+
+        # future.add_done_callback(
+        #     lambda f: node.get_logger().info("MoveStop service response received")
+        #     if f.result() is not None
+        #     else node.get_logger().error("MoveStop service call failed")
+        # )
+
+        # rclpy.spin_until_future_complete(node, future)
+
+        # if future.result() is not None:
+        #     node.get_logger().info(f"MoveStop DR_SSTOP success: {future.result().success}")
+        # else:
+        #      node.get_logger().error("MoveStop DR_SSTOP service call failed")
+
+        # node.destroy_node()
+        # rclpy.shutdown()
+
+
+    def stop_callback(msg):
+        if msg.data:
+            request_sstop()
+
+
+    node.create_subscription(
+        Bool,
+        "/stop_perfume",
+        stop_callback,
+        10
+    )
+
+    # ============================================
+
 
     node.get_logger().info("Order perfume service server ready")
 
@@ -265,15 +315,14 @@ def main(args=None):
 
     except KeyboardInterrupt:
         node.get_logger().info("Program Stopped")
+        done_msg = Bool()
+        done_msg.data = False
+        done_pub.publish(done_msg)
+        
     except TimeoutError as e:
         node.get_logger().error(str(e))
 
     finally:
-        try:
-            controller.move_to_home()
-        except Exception as e:
-            node.get_logger().error(f"Failed to move home: {e}")
-
         node.destroy_node()
         rclpy.shutdown()
 

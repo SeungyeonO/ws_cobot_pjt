@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'main = cobot_control.main:main',
+            'main_thread = cobot_control.main_thread:main',
         ],
     },
 )
