@@ -28,6 +28,8 @@ def main(args=None):
             release_compliance_ctrl,
             get_tool_force,
             movej,
+            amove_periodic,
+            amovej,
             movel,
             wait,
             DR_MV_MOD_REL,
@@ -153,14 +155,25 @@ def main(args=None):
 
                         controller.move_up(z=18.16) # 내려간 만큼 올라가기
 
-                        movej(posj([0,0,0,0,0,45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
+                        # movej(posj([0,0,0,0,0,45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
                         
                         node.get_logger().info("🦾 뚜껑 잡기 완료")
                         # =============================
 
                         node.get_logger().info(f"📍➔📍 향수병으로 이동")
-                        controller.move_to_pose(goal_pose=PERFUME_POSE, up=81.23, down=100.58) # 향수병 상단 - 뚜껑 놓을 위치
+                        controller.move_to_pose(goal_pose=PERFUME_POSE, up=81.23, down=94.58) # 향수병 상단 - 뚜껑 놓을 위치
                         wait(0.5)
+
+                        task_compliance_ctrl([300,300,300,200,200,200], 0)
+                        wait(0.5)
+                        set_desired_force([0,0,-13,0,0,0], [0,0,1,0,0,0])
+
+                        while 1:
+                            var_force = get_tool_force()
+                            if var_force[2] > 13:
+                                release_force()
+                                release_compliance_ctrl()
+                                break
 
                         controller.release()
                         # ===== 스포이드 용액 투출 ========
@@ -183,11 +196,15 @@ def main(args=None):
                         controller.move_down(z=16.16) # 뚜껑 위치로 이동
                         controller.grip()
 
-                        # movej(posj([0,0,0,0,0,-45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
+                        # movej(posj([0,0,0,0,0,-30]), vel=80, acc=80, mod=DR_MV_MOD_REL)
+                        # wait(0.5)
+
+                        movej(posj([0,0,0,0,0,-45]), vel=80, acc=80, mod=DR_MV_MOD_REL)
+                        # amove_periodic(amp=[0,0,0,0,0,20], period=[0,0,0,0,0,1], atime=0, repeat=3, ref=DR_BASE)
 
                         controller.move_up(z=16.16) # 내려간 만큼 올라가기
 
-                        # movej(posj([0,0,0,0,0,45]), vel=50, acc=50, mod=DR_MV_MOD_REL)
+                        # movej(posj([0,0,0,0,0,30]), vel=80, acc=80, mod=DR_MV_MOD_REL)
                         
                         node.get_logger().info("🦾 뚜껑 잡기 완료")
                         # =============================

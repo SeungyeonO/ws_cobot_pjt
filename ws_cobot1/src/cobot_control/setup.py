@@ -26,6 +26,8 @@ setup(
         'console_scripts': [
             'main = cobot_control.main:main',
             'main_thread = cobot_control.main_thread:main',
+            'main_log = cobot_control.main_log:main',
+            'main_test = cobot_control.main_test:main',
         ],
     },
 )

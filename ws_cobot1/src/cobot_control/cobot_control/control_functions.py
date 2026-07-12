@@ -24,11 +24,11 @@ from DSR_ROBOT2 import (
 from DR_common2 import posj, posx, posb
 
 
-SCENT1_POSE = posx([337.810,-152.910,170.29,0,180,0])
-SCENT2_POSE = posx([426.810,-150.86,170.29,0,180,0])
+SCENT1_POSE = posx([337.810,-152.910,171.29,0,180,0])
+SCENT2_POSE = posx([428.810,-150.86,170.29,0,180,0])
 SCENT3_POSE = posx([337.19,-108.38,170.29,0,180,0])
 SCENT4_POSE = posx([427.4,-107.55,170.29,0,180,0])
-SCENT5_POSE = posx([336.31,-64.03,170.29,0,180,0])
+SCENT5_POSE = posx([336.31,-64.53,170.29,0,180,0])
 SCENT6_POSE = posx([426.14,-60.69,170.29,0,180,0])
 PERFUME_POSE = posx([340.2,63.81,209.73,0,180,0])
 PERFUME_LID_POSE = posx([417.49,65.49,209.73,0,180,0])
@@ -182,7 +182,7 @@ class RobotController:
 
         self.node.get_logger().info(f"🚀 Start Shaking Perfume: radius={R}, cycle={cycle}")
 
-        moveb(circle_path, vel=120, acc=200, ref=DR_TOOL, mod=DR_MV_MOD_REL)
+        moveb(circle_path, vel=150, acc=200, ref=DR_TOOL, mod=DR_MV_MOD_REL)
 
         self.node.get_logger().info("🙏 Finished Shaking Perfume")
 
@@ -276,8 +276,8 @@ class RobotController:
         from_home=False,
         up=60,
         down=60,
-        velocity=150,
-        acceleration=60,
+        velocity=200,
+        acceleration=100,
         radius=15,          # 향료-향수 사이 이동을 더 부드럽게 하기 위한 radius
         goal_up_radius=3,   # goal_pose 위쪽은 정확히 찍을 필요 없으므로 5
         mid_z_offset=30     # 자동 mid_pose 높이
