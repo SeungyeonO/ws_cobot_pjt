@@ -26,6 +26,14 @@
             </div>
             <p class="panel-note">조인트 스트림 기준 연결 판정 (2초 이상 미수신 시 끊김)</p>
 
+            <!-- 모션(동작 중/정지)은 조인트 각도 변화로 판정하는 값이라 이 패널 소속 -->
+            <div class="subsection">
+                <div class="subsection-head">
+                    <span class="sub-label">모션</span>
+                    <span id="motion-badge" class="badge idle">--</span>
+                </div>
+            </div>
+
             <div class="subsection">
                 <div class="subsection-head">
                     <span class="sub-label">TCP 힘/토크</span>
@@ -43,33 +51,41 @@
             </div>
         </section>
 
-        <!-- 2. 제조 현황 -->
+        <!-- 2. 제조 현황 (현재 제조 상태 + 최근 이력)
+             로봇 모션은 로봇 상태 패널로 이동, 키오스크 잠금은 제어 패널 토글이
+             상태 표시를 겸한다 — 이 패널은 제조 관련 정보만 넉넉하게 쓴다. -->
         <section class="panel">
             <h2>제조 현황</h2>
-            <div class="stat-grid">
-                <div class="stat">
-                    <div class="stat-label">제조 상태</div>
+
+            <div class="subsection making-section">
+                <div class="subsection-head">
+                    <span class="sub-label">제조 상태</span>
                     <div id="making-state" class="making-state idle">대기 중</div>
                 </div>
-                <div class="stat">
-                    <div class="stat-label">로봇 모션</div>
-                    <span id="motion-badge" class="badge idle">--</span>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">키오스크 잠금</div>
-                    <span id="kiosk-badge" class="badge idle">--</span>
-                </div>
+                <div id="making-detail" class="making-detail"></div>
+                <!-- 마감(성공/실패)된 제조만 1건 1행 — 백엔드 SQLite에 저장되어 재시작에도 유지 -->
+                <div class="history-head">최근 제조 이력</div>
+                <ul id="making-history" class="making-history">
+                    <li class="empty">아직 제조 이력이 없습니다.</li>
+                </ul>
             </div>
-            <div id="making-detail" class="making-detail"></div>
-            <div id="last-job" class="last-job"></div>
         </section>
 
         <!-- 3. 제어 -->
         <section class="panel">
             <h2>제어</h2>
-            <div class="estop-ring">
-                <button id="btn-estop" class="estop-btn" type="button">비상 정지<span class="estop-sub">E-STOP</span></button>
+            <div class="stop-ring">
+                <button id="btn-stop" class="stop-btn" type="button">정지<span class="stop-sub">STOP</span></button>
             </div>
+            <!-- 정지는 서보 차단(Safe-Off)이라 자동 재개가 불가 — 현장 확인 후 복구로 해제.
+                 복구 = 정지 유지(가드) 해제 + 서보 복구(servo_on) — robot_bridge.py 주석 참고.
+                 소프트웨어 정지(move_stop)라 안전 정지/비상 정지가 아님 -->
+            <div class="ctl-group">
+                <span class="ctl-label">정지 복구</span>
+                <button id="btn-servo-on" class="btn secondary ctl-home" type="button">복구</button>
+            </div>
+            <!-- 일시정지/재개 버튼은 제거됨 — 두산 ROS2 드라이버가 모션 진행 중에
+                 move_pause 요청에 응답하지 못하는 구조라 실사용 불가 (robot_bridge.py 주석 참고) -->
             <div class="ctl-group">
                 <span class="ctl-label">모션</span>
                 <button id="btn-home" class="btn secondary ctl-home" type="button">홈 복귀</button>
@@ -98,12 +114,12 @@
             <p id="control-msg" class="control-msg"></p>
         </section>
 
-        <!-- 4. 에러 로그 -->
+        <!-- 4. 로그 — 에러뿐 아니라 INFO/WARN 레벨 이벤트(드라이버 메시지, 자동 정지 결과 등)도 함께 뜬다 -->
         <section class="panel panel-wide">
-            <h2>에러 로그 <span class="sub">최근 20건</span>
+            <h2>로그 <span class="sub">최근 20건</span>
                 <button id="btn-clear-errors" class="h2-btn" type="button">지우기</button></h2>
             <ul id="error-list" class="error-list">
-                <li class="empty">기록된 에러가 없습니다.</li>
+                <li class="empty">기록된 로그가 없습니다.</li>
             </ul>
         </section>
     </main>

@@ -3,7 +3,7 @@
 <package format="3">
   <name>perfume_hmi</name>
   <version>0.1.0</version>
-  <description>조향 자동화 솔루션 HMI 백엔드 (관리자 모니터링/대시보드 — 로봇 연결 상태·estop·홈 복귀)</description>
+  <description>조향 자동화 솔루션 HMI 백엔드 (관리자 모니터링/대시보드 — 로봇 연결 상태·정지·홈 복귀)</description>
   <maintainer email="jeowryu@gmail.com">jeongwan-ryu</maintainer>
   <license>Apache-2.0</license>
 
@@ -13,6 +13,7 @@
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>dsr_msgs2</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
   <exec_depend>python3-flask</exec_depend>
 
   <test_depend>ament_copyright</test_depend>

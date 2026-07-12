@@ -74,7 +74,7 @@ function resetIdleTimer() {
 
 // ===== 관리자 숨김 진입 =====
 // 시작 화면 오른쪽 위 모서리(admin-hotspot)를 3초 길게 누르면 관리자 페이지로.
-// 눈에 보이는 버튼을 두면 손님이 눌러볼 수 있어서(관리자 페이지엔 비상 정지가
+// 눈에 보이는 버튼을 두면 손님이 눌러볼 수 있어서(관리자 페이지엔 로봇 정지가
 // 있음) 직원만 아는 숨김 제스처로 만들었다.
 // HMI(관리자 페이지)는 로봇 제어 PC에서 별도로 실행되므로(perfume_hmi 패키지),
 // 배포 시 아래 주소를 실제 로봇 제어 PC의 IP로 바꿔야 한다.
@@ -244,7 +244,7 @@ function buildCustomTab() {
         .join("");
       row.innerHTML += `
         <label class="choice-card scent-${scent.toLowerCase()}">
-          <input type="checkbox" data-layer="${layer}" value="${scent}" />
+          <input type="radio" name="custom-${layer}" data-layer="${layer}" value="${scent}" />
           <span class="icons">${icons}</span>
           <span class="choice-title">${meta.name}</span>
           <span class="choice-desc">${meta.desc}</span>
@@ -259,9 +259,11 @@ document.querySelector('[data-mode="custom"]').addEventListener("click", () => {
   document.querySelectorAll("#custom-layers input:checked").forEach((cb) => {
     selections[cb.dataset.layer].push(cb.value);
   });
-  const total = selections.top.length + selections.middle.length + selections.base.length;
-  if (total === 0) {
-    showToast("향료를 하나 이상 선택해주세요.");
+  // 레이어(Top/Middle/Base)마다 정확히 하나씩 — 라디오라 2개 이상은 불가능하고,
+  // 아직 안 고른 레이어만 걸러낸다. (백엔드 _plan_from_custom도 같은 규칙 검증)
+  const missing = ["top", "middle", "base"].filter((l) => selections[l].length !== 1);
+  if (missing.length > 0) {
+    showToast("Top, Middle, Base에서 향료를 하나씩 선택해주세요.");
     return;
   }
   submitPerfume({ mode: "custom", selections });

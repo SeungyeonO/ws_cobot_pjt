@@ -18,7 +18,7 @@ setup(
     zip_safe=True,
     maintainer="jeongwan-ryu",
     maintainer_email="jeowryu@gmail.com",
-    description="조향 자동화 솔루션 HMI 백엔드 (관리자 모니터링/대시보드 — 로봇 연결 상태·estop·홈 복귀)",
+    description="조향 자동화 솔루션 HMI 백엔드 (관리자 모니터링/대시보드 — 로봇 연결 상태·정지·홈 복귀)",
     license="Apache-2.0",
     tests_require=["pytest"],
     entry_points={

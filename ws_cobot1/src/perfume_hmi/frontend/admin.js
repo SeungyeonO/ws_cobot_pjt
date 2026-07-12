@@ -1,7 +1,7 @@
 // ===== 관리자 HMI =====
 // 1초마다 /api/admin/status를 폴링해서 로봇 연결/조인트/그리퍼/TCP 힘/제조 현황/
-// 에러 로그를 갱신하고, 제어 버튼(비상 정지/홈 복귀/그리퍼 개폐/속도 모드 전환/
-// 키오스크 잠금/에러 로그 지우기)은 POST로 실행한다.
+// 로그(에러뿐 아니라 INFO/WARN 이벤트도 포함)를 갱신하고, 제어 버튼(로봇 정지/
+// 서보 복구/홈 복귀/그리퍼 개폐/속도 모드 전환/키오스크 잠금/로그 지우기)은 POST로 실행한다.
 
 const POLL_INTERVAL_MS = 1000;
 let kioskLocked = false; // 최근 폴링 기준 잠금 상태 (토글 스위치 표시용)
@@ -14,9 +14,8 @@ const gripperBadge = document.getElementById("gripper-badge");
 const forceGridEl = document.getElementById("force-grid");
 const makingStateEl = document.getElementById("making-state");
 const makingDetailEl = document.getElementById("making-detail");
-const lastJobEl = document.getElementById("last-job");
+const makingHistoryEl = document.getElementById("making-history");
 const motionBadge = document.getElementById("motion-badge");
-const kioskBadge = document.getElementById("kiosk-badge");
 const errorListEl = document.getElementById("error-list");
 const controlMsgEl = document.getElementById("control-msg");
 const chkLock = document.getElementById("chk-lock");
@@ -48,6 +47,43 @@ FORCE_LABELS.forEach((label) => {
 
 // unknown = I/O 조회 서비스에서 아직 응답을 못 받은 상태 (드라이버 미기동 등)
 const GRIPPER_LABELS = { grip: "파지", release: "열림", unknown: "서버 대기 중" };
+
+// 제조 공정 단계 코드 → 한글 표시명. 코드 값은 cobot_control의 /perfume_status
+// 발행 규약(robot_bridge.py의 STATUS_* 상수)과 동일해야 한다. 목록에 없는
+// 코드가 오면 백엔드가 내려주는 영문 status_name을 그대로 표시한다.
+const MAKING_STEP_LABELS = {
+  0: "대기",
+  10: "주문 접수",
+  20: "제조 시작",
+  30: "공병으로 이동",
+  40: "공병 확인",
+  50: "공병 뚜껑 열기",
+  60: "공병 뚜껑 보관",
+  100: "향료 공정 시작",
+  110: "향료로 이동",
+  120: "향료 추출",
+  130: "향료 뚜껑 잡기",
+  140: "향료 뚜껑 열기",
+  150: "향료 병으로 이동",
+  160: "향료 주입",
+  170: "향료 뚜껑 되잡기",
+  180: "향료 위치로 복귀",
+  190: "향료 뚜껑 닫기",
+  200: "향료 공정 완료",
+  210: "공병 뚜껑 가져오기",
+  220: "뚜껑 공병으로 이동",
+  230: "공병 뚜껑 닫기",
+  240: "완성 향수 파지",
+  250: "홈으로 이동",
+  260: "향수 셰이킹",
+  270: "기울여 혼합",
+  280: "픽업대로 이동",
+  290: "향수 내려놓기",
+  300: "그리퍼 해제",
+  310: "제조 완료",
+  320: "홈 복귀 중",
+  330: "준비 완료",
+};
 
 // 로봇 모션 추정 — 드라이버가 모션 상태를 토픽으로 주지 않아서, 폴링 간격 사이에
 // 조인트 각도가 변했는지로 "동작 중/정지"를 판정한다.
@@ -86,12 +122,16 @@ function render(s) {
     if (jointVals[i]) jointVals[i].textContent = `${v.toFixed(1)}°`;
   });
 
-  // 로봇 모션 배지 — 직전 폴링값과 비교해서 조인트가 움직였는지 판정
+  // 모션 배지 (로봇 상태 패널) — 직전 폴링값과 비교해서 조인트가 움직였는지 판정
   if (prevJoints && joints.some((v, i) => Math.abs(v - prevJoints[i]) > MOTION_THRESHOLD_DEG)) {
     lastMotionTs = Date.now();
   }
   prevJoints = joints.slice();
-  if (!connected) {
+  if (s.robot.stop_guard) {
+    // 정지 유지(가드) 활성 — '서보 복구'를 누를 때까지 move_stop이 반복 호출되는 상태
+    motionBadge.className = "badge off";
+    motionBadge.textContent = "정지 유지 중";
+  } else if (!connected) {
     motionBadge.className = "badge off";
     motionBadge.textContent = "--";
   } else if (Date.now() - lastMotionTs < MOTION_HOLD_MS) {
@@ -121,27 +161,49 @@ function render(s) {
   btnSpeedNormal.classList.toggle("active", speedMode === 0);
   btnSpeedReduced.classList.toggle("active", speedMode === 1);
 
-  // 제조 현황
+  // 제조 현황 — cobot_control이 /perfume_status(Int32)로 발행하는 공정 단계 코드.
+  // 어떤 향료를 몇 샷 붓는지(plan)는 이 토픽에 없어서 표시하지 않는다
+  // (Order.srv로 kiosk→cobot_control에만 전달됨).
   const m = s.making || {};
   if (m.active) {
     makingStateEl.className = "making-state active";
     makingStateEl.textContent = "제조 중";
-    const plan = (m.plan || []).map((p) => `${p.scent} ${p.shots}샷`).join(", ");
+    const step = MAKING_STEP_LABELS[m.status_code] || m.status_name || "";
     makingDetailEl.innerHTML =
-      `<b>${m.recipe_name || ""}</b><br>${plan}<br>경과 ${m.elapsed_sec ?? 0}초`;
+      `<b>${step}</b> (${m.status_name || m.status_code})<br>경과 ${m.elapsed_sec ?? 0}초`;
   } else {
     makingStateEl.className = "making-state idle";
     makingStateEl.textContent = "대기 중";
-    makingDetailEl.textContent = "";
+    // 완료(310)/홈 복귀(320)/준비(330) 등 대기여도 의미 있는 단계면 이름은 보여준다.
+    const idleStep = MAKING_STEP_LABELS[m.status_code];
+    makingDetailEl.textContent = (m.status_code && idleStep) ? idleStep : "";
   }
-  lastJobEl.textContent = m.last
-    ? `직전 작업: ${m.last.recipe_name} · ${m.last.status === "success" ? "성공" : "실패"} (${m.last.finished_at})`
-    : "";
+  // 최근 제조 이력 — 성공/실패로 마감된 제조만 1건 1행 (SQLite 저장이라 재시작에도 유지).
+  // duration_sec이 null이면 HMI가 제조 도중 재시작해서 시작 시각을 못 본 경우.
+  const history = m.history || [];
+  if (history.length === 0) {
+    makingHistoryEl.innerHTML = `<li class="empty">아직 제조 이력이 없습니다.</li>`;
+  } else {
+    makingHistoryEl.innerHTML = history.map((h) => {
+      const ok = h.result === "success";
+      const dur = h.duration_sec != null
+        ? (h.duration_sec >= 60
+            ? `${Math.floor(h.duration_sec / 60)}분 ${h.duration_sec % 60}초`
+            : `${h.duration_sec}초`)
+        : "";
+      const detail = ok
+        ? (dur ? `${dur} 소요` : "")
+        : `${MAKING_STEP_LABELS[h.last_step] || h.last_step_name || "?"} 단계에서 중단${dur ? ` (${dur} 경과)` : ""}`;
+      return `<li><span class="t">${h.finished_at}</span>` +
+        `<span class="rs ${ok ? "ok" : "fail"}">${ok ? "성공" : "실패"}</span>` +
+        `<span>${detail}</span></li>`;
+    }).join("");
+  }
 
-  // 에러 로그
+  // 로그 — 레벨(INFO/WARN/ERROR)에 따라 색만 다르고 항목 자체는 전부 여기 같이 뜬다
   const errors = s.errors || [];
   if (errors.length === 0) {
-    errorListEl.innerHTML = `<li class="empty">기록된 에러가 없습니다.</li>`;
+    errorListEl.innerHTML = `<li class="empty">기록된 로그가 없습니다.</li>`;
   } else {
     errorListEl.innerHTML = errors
       .map((e) =>
@@ -149,13 +211,10 @@ function render(s) {
       .join("");
   }
 
-  // 키오스크 잠금 상태 — 제조 현황 배지 + 제어 탭 토글 스위치 동기화.
+  // 키오스크 잠금 상태 — 제어 패널의 토글 스위치가 표시를 겸한다 (별도 배지 없음).
   // 주의: HMI가 아는 건 잠금 플래그뿐이다 (키오스크→HMI 단방향 통신이라
-  // 키오스크 PC가 실제로 떠 있는지는 알 수 없음). 그래서 "주문 접수 중" 같은
-  // 표현 대신 잠금 상태 그대로만 표시한다.
+  // 키오스크 PC가 실제로 떠 있는지는 알 수 없음).
   kioskLocked = !!s.kiosk_locked;
-  kioskBadge.className = `badge ${kioskLocked ? "warn" : "on"}`;
-  kioskBadge.textContent = kioskLocked ? "잠금 (점검 중)" : "잠금 해제";
   chkLock.checked = kioskLocked;
 }
 
@@ -178,10 +237,21 @@ async function postControl(url, body) {
   }
 }
 
-// 비상 정지 — 긴급 상황용이므로 확인창 없이 즉시 실행
-document.getElementById("btn-estop").addEventListener("click", async () => {
-  showControlMsg("비상 정지 전송 중...", true);
-  const r = await postControl("/api/admin/estop");
+// 로봇 정지 — 긴급 상황용이므로 확인창 없이 즉시 실행.
+// cobot_control 제조 시퀀스 중단(/stop_perfume) + 진행 중 모션 정지(move_stop).
+// 주의: 이더넷 경유 소프트웨어 정지라 안전 정지/비상 정지가 아니다 —
+// 물리 비상정지 버튼을 대체할 수 없다 (robot_bridge.py 주석 참고).
+document.getElementById("btn-stop").addEventListener("click", async () => {
+  showControlMsg("정지 명령 전송 중...", true);
+  const r = await postControl("/api/admin/stop");
+  showControlMsg(r.message || "", r.status === "success");
+});
+
+// 복구 — 정지 유지(가드) 해제 + Safe-Off면 서보 복구. 실수로 누르는 걸 막기 위해 확인창을 띄운다.
+document.getElementById("btn-servo-on").addEventListener("click", async () => {
+  if (!confirm("정지 원인을 확인·조치했습니까?\n복구하면 로봇이 다시 움직일 수 있는 상태가 됩니다.")) return;
+  showControlMsg("복구 중...", true);
+  const r = await postControl("/api/admin/servo_on");
   showControlMsg(r.message || "", r.status === "success");
 });
 
@@ -226,7 +296,7 @@ btnSpeedReduced.addEventListener("click", async () => {
   poll();
 });
 
-// 에러 로그 지우기
+// 로그 지우기
 document.getElementById("btn-clear-errors").addEventListener("click", async () => {
   await postControl("/api/admin/clear_errors");
   poll();

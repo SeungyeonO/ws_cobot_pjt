@@ -217,6 +217,7 @@ SEED_RECIPES = [
 ]
 
 
+# ---------- DB 초기화 ----------
 def init_db():
     """schema.sql 실행 + 추천 레시피 시드."""
     os.makedirs(DB_DIR, exist_ok=True)
@@ -224,6 +225,7 @@ def init_db():
         schema = f.read()
 
     conn = sqlite3.connect(DB_PATH)
+    # schema.sql 실행 후 추천 레시피 시드
     try:
         conn.executescript(schema)
         conn.executemany(
@@ -233,6 +235,7 @@ def init_db():
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             SEED_RECIPES,
         )
+        # DB 변경 사항 커밋
         conn.commit()
         print(f"[init_db] DB 생성 완료: {DB_PATH}")
         print(f"[init_db] 추천 레시피 {len(SEED_RECIPES)}건 시드 완료")
@@ -268,6 +271,7 @@ def get_recipes():
 
 def _plan_from_recommend(recipe_id):
     """추천 조합: DB 배율(%)을 총 샷 수로 환산."""
+    # DB 조회
     conn = get_db()
     try:
         row = conn.execute(
@@ -281,29 +285,37 @@ def _plan_from_recommend(recipe_id):
 
     if row is None:
         return None, None
-
+    
+    # DB 배율(%)을 총 샷 수로 환산 — 소수점 반올림, 0샷이면 제외
     plan = [
         {"scent": row["top_scent"],  "shots": round(row["top_ratio"]  / 100 * RECOMMEND_TOTAL_SHOTS)},
         {"scent": row["mid_scent"],  "shots": round(row["mid_ratio"]  / 100 * RECOMMEND_TOTAL_SHOTS)},
         {"scent": row["base_scent"], "shots": round(row["base_ratio"] / 100 * RECOMMEND_TOTAL_SHOTS)},
     ]
+    # 0샷 향료는 제외 (DB 배율이 0%인 경우)
     plan = [p for p in plan if p["shots"] > 0]
     return row["recipe_name"], plan
 
 
 def _plan_from_custom(selections):
-    """나만의 조합: 선택된 향료마다 고정 샷."""
+    """나만의 조합: Top/Middle/Base 레이어마다 향료 정확히 1개씩, 향료당 고정 샷.
+
+    노트 (탑, 미들, 베이스) 당 1개 제한은 프론트엔드(라디오 버튼)도 걸지만, 총 샷 수가 여기서
+    결정되므로(3개 × CUSTOM_SHOTS_PER_SCENT) 서버에서도 검증한다.
+    """
     if not isinstance(selections, dict):
         return None, None
     plan = []
     for layer in ("top", "middle", "base"):
         scents = selections.get(layer, [])
-        if not isinstance(scents, list):
+        # 프론트엔드에서 라디오 버튼으로 1개만 선택하도록 했지만, 혹시라도 여러 개가 들어오면 무효 처리
+        if not isinstance(scents, list) or len(scents) != 1:
             return None, None
-        for scent in scents:
-            if scent not in ALL_SCENTS:
-                return None, None
-            plan.append({"scent": scent, "shots": CUSTOM_SHOTS_PER_SCENT})
+        # 선택된 향료가 실제 장착된 향료인지 검증
+        scent = scents[0] # 프론트엔드에서 라디오 버튼으로 1개만 선택하도록 했지만, 혹시라도 여러 개가 들어오면 무효 처리
+        if scent not in VALID_SCENTS[layer]:
+            return None, None
+        plan.append({"scent": scent, "shots": CUSTOM_SHOTS_PER_SCENT})
     return "나만의 조합", plan
 
 
@@ -356,29 +368,33 @@ def make_perfume():
     mode = data["mode"]
 
     # 사용자 모드 선택에 따라 제조 계획(plan)을 계산한다.
-    if mode == "recommend":
+    if mode == "recommend": # 오늘의 추천 조합
         recipe_id = data.get("recipe_id")
+        # DB에서 레시피 정보 조회 실패 시 404, recipe_id 누락 시 400
         if recipe_id is None:
             return jsonify({"status": "error", "message": "recipe_id가 없습니다."}), 400
         recipe_name, plan = _plan_from_recommend(recipe_id)
         if plan is None:
             return jsonify({"status": "error", "message": "존재하지 않는 레시피입니다."}), 404
 
-    elif mode == "custom":
+    elif mode == "custom": # 나만의 조합
         recipe_name, plan = _plan_from_custom(data.get("selections", {}))
         if plan is None:
             return jsonify({"status": "error", "message": "잘못된 향료 선택입니다."}), 400
 
-    elif mode == "free":
+    elif mode == "free":  # 내맘대로 조합
         recipe_name, plan = _plan_from_free(data.get("slots", []))
         if plan is None:
             return jsonify({"status": "error", "message": "잘못된 향료 선택입니다."}), 400
 
     else:
         return jsonify({"status": "error", "message": f"알 수 없는 모드: {mode}"}), 400
+    
+
     # 선택 향료 없을 시
     if not plan:
         return jsonify({"status": "error", "message": "선택된 향료가 없습니다."}), 400
+
 
     # 총 샷 수 검증 — '내맘대로' 모드만 제한, 나머지는 DB/고정값
     total = sum(p["shots"] for p in plan)
@@ -404,6 +420,7 @@ def make_perfume():
 
 
 def main():
+    # Flask 앱 실행 전에 DB 초기화 + 로봇 클라이언트 생성
     global _robot
     if not os.path.exists(DB_PATH):
         init_db()
