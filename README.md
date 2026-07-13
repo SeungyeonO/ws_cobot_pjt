@@ -175,6 +175,6 @@ ros2 run cobot_control main
 ## 참고: 커스텀 패키지
 주문 내역을 주고받기 위해 `perfume_order_srv/srv/Order` 타입의 서비스 인터페이스를 만들었습니다.
 
-해당 인터페이스 패키지는 `/ws_cobot_pjt/ws_cobot1/src' 아래 `perfume_order_srv`에서 내용을 확인할 수 있습니다.
+해당 인터페이스 패키지는 `/ws_cobot_pjt/ws_cobot1/src` 아래 `perfume_order_srv`에서 내용을 확인할 수 있습니다.
 
 
