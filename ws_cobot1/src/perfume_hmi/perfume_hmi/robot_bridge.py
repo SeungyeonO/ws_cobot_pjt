@@ -12,13 +12,17 @@
 - 그리퍼 상태(컨트롤박스 디지털 출력)와 TCP 힘/토크는 로봇 드라이버 서비스를
   주기적으로 직접 조회한다 — cobot_control과 무관하게 로봇에서 바로 받아오는
   값이라, 그쪽 패키지가 아직 미완성이어도 동작한다.
-- 두산 표준 서비스로 로봇 정지(stop_robot)·서보 복구(servo_on)·홈 복귀
-  (move_home)를 수행한다. 일시정지/재개(move_pause/move_resume)는 제공하지
-  않는다 — 두산 ROS2 드라이버가 이 두 서비스를 모션 서비스(move_joint 등)와
-  같은 MutuallyExclusive 콜백 그룹에 등록해 둬서, 정작 모션이 진행 중일 때는
+- 로봇 정지(stop_robot)는 /stop_perfume 신호 발행뿐이다 — 실제 정지(move_stop
+  호출 + 시퀀스 중단)는 cobot_control이 수행한다. 정지 로직을 한 곳에 모은
+  이유와 트레이드오프는 STOP_PERFUME_TOPIC 주석 참고.
+- 두산 표준 서비스로 홈 복귀(move_home)를 수행한다.
+  일시정지/재개(move_pause/move_resume)는 제공하지 않는다 — 두산 ROS2
+  드라이버가 이 두 서비스를 모션 서비스(move_joint 등)와 같은
+  MutuallyExclusive 콜백 그룹에 등록해 둬서, 정작 모션이 진행 중일 때는
   (movej_cb가 그룹을 점유하고 있어) 일시정지 요청이 모션이 끝날 때까지 응답을
   못 받는다. 즉 필요한 순간에 구조적으로 동작하지 않아 실로봇 확인 후 제거했다.
-  (move_stop만 드라이버가 별도 콜백 그룹(cb_group_)에 등록해 둬서 모션 중에도 동작한다.)
+  (move_stop만 드라이버가 별도 콜백 그룹(cb_group_)에 등록해 둬서 모션 중에도
+  동작한다 — cobot_control의 정지 구현이 이 성질에 기대고 있다.)
 - cobot_control의 제조 완료/실패 신호(/perfume_done, Bool)를 구독해서,
   false(제조 실패)를 받으면 자동으로 로봇을 정지시킨다.
 - cobot_control의 제조 공정 단계 신호(/perfume_status, Int32)를 구독해서
@@ -28,10 +32,11 @@
   재시작 후에도 최근 이력이 남는다 (실시간 상태는 메모리 캐시만 사용).
 
 [용어 주의 — 이 '정지'는 안전 정지/비상 정지가 아니다]
-여기서 수행하는 정지는 두산 move_stop 서비스 호출, 즉 이더넷(ROS2) 경유의
-일반 소프트웨어 명령이다. 안전 정지(STO/SS1/SS2)나 비상 정지(E-Stop)는 안전
-등급 하드와이어 전기 신호(컨트롤러 안전 입력 단자, 물리 비상정지 버튼)로만
-발동되며, 네트워크 경로로는 불가능하다. 네트워크/드라이버가 죽으면 이 정지도
+여기서 말하는 정지는 ROS2 토픽 신호(/stop_perfume)와 그걸 받은 cobot_control의
+move_stop 호출, 즉 이더넷 경유의 일반 소프트웨어 명령이다. 안전
+정지(STO/SS1/SS2)나 비상 정지(E-Stop)는 안전 등급 하드와이어 전기
+신호(컨트롤러 안전 입력 단자, 물리 비상정지 버튼)로만 발동되며, 네트워크
+경로로는 불가능하다. 네트워크/드라이버/cobot_control이 죽으면 이 정지도
 동작하지 않으므로 물리 비상정지 버튼을 대체할 수 없다 — 그래서 이 코드에서는
 '비상 정지'가 아니라 그냥 '정지'라고 부른다.
 
@@ -67,8 +72,6 @@ from std_msgs.msg import Bool, Int32
 from dsr_msgs2.msg import RobotError, RobotDisconnection
 from dsr_msgs2.srv import (
     MoveJoint,
-    MoveStop,
-    SetRobotControl,
     GetToolForce,
     GetCtrlBoxDigitalOutput,
     SetCtrlBoxDigitalOutput,
@@ -88,9 +91,7 @@ JOINT_STATES_TOPIC = f"/{ROBOT_NAMESPACE}/joint_states"
 ROBOT_JOINT_NAMES = [f"joint_{i}" for i in range(1, 7)]
 ROBOT_ERROR_TOPIC = f"/{ROBOT_NAMESPACE}/error"
 ROBOT_DISCONNECTION_TOPIC = f"/{ROBOT_NAMESPACE}/robot_disconnection"
-MOVE_STOP_SERVICE = f"/{ROBOT_NAMESPACE}/motion/move_stop"
 MOVE_JOINT_SERVICE = f"/{ROBOT_NAMESPACE}/motion/move_joint"
-SET_ROBOT_CONTROL_SERVICE = f"/{ROBOT_NAMESPACE}/system/set_robot_control"
 
 # 제조 완료/실패 신호 토픽 (std_msgs/Bool) — cobot_control이 발행, kiosk와 HMI가
 # 함께 구독한다. true=제조 성공, false=제조 실패. false를 받으면 HMI가 자동으로
@@ -185,32 +186,20 @@ MAKING_HISTORY_DB_DIR = os.path.expanduser("~/.perfume")
 MAKING_HISTORY_DB_PATH = os.path.join(MAKING_HISTORY_DB_DIR, "hmi_history.db")
 MAKING_HISTORY_LIMIT = 5         # 관리자 화면에 보여줄 최근 제조 이력 개수 (DB에는 전부 쌓인다)
 
-# 제조 시퀀스 중단 신호 토픽 (std_msgs/Bool) — cobot_control(main_thread.py)이 구독한다.
-# true를 받으면 cobot_control이 스스로 move_stop을 호출하고 제조 시퀀스를
-# KeyboardInterrupt로 중단한 뒤 perfume_done=false를 발행하고 종료한다.
-# move_stop 서비스는 "지금 실행 중인 모션 1개"만 멈추기 때문에, 이 신호를 같이
-# 보내지 않으면 cobot_control이 다음 movej/movel을 이어 보내서 로봇이 잠깐
-# 멈췄다가 계속 움직인다 (실로봇에서 확인된 증상).
+# 제조 시퀀스 중단 신호 토픽 (std_msgs/Bool) — 정지 로직의 단일 경로.
+# HMI는 이 신호를 발행만 하고, 실제 정지(진행 중 모션 move_stop + 시퀀스 중단)는
+# 전부 cobot_control이 수행한다: true 수신 → 스스로 move_stop 호출 →
+# KeyboardInterrupt로 시퀀스 중단 → perfume_done=false 발행 후 종료
+# (검증된 참고 구현: cobot_control/main_thread.py의 stop_callback).
+#
+# (참고) 한때 HMI가 move_stop을 직접 호출했고(1회 + 0.2초 반복 가드까지),
+# 실로봇 테스트에서 모션 1개는 끊겨도 cobot_control 시퀀스가 wait/그리퍼 I/O를
+# 타고 계속 진행돼 정지 효과가 없었다. 어중간하게 끊긴 자세에서 다음 파지/토출
+# 스텝이 이어지는 게 오히려 위험해, 정지 로직을 cobot_control 한 곳으로 모으고
+# HMI 쪽 move_stop 호출은 전부 제거했다. 트레이드오프: cobot_control이 죽거나
+# 행업된 상태에서는 이 신호로 로봇을 멈출 수 없다 — 그 경우의 최후 수단은
+# 물리 비상정지 버튼이다 (아래 [용어 주의] 참고).
 STOP_PERFUME_TOPIC = "/stop_perfume"
-
-# 정지 stop_mode — 두산 stop() 모드: 0=DR_QSTOP_STO(급정지 — 이름과 달리 dsr_msgs2
-# MoveStop.srv 문서상 'without STO'라 서보 차단 안 됨), 1=DR_QSTOP(급정지),
-# 2=DR_SSTOP(감속 정지), 3=DR_HOLD(유지 정지, move_resume으로 재개 가능).
-# 실로봇 테스트에서 stop_mode만으로는 로봇이 계속 멈춰 있지 않았다(시퀀스의 다음
-# 모션이 오면 다시 움직임) — 계속 멈춰 있게 하는 건 STOP_PERFUME_TOPIC 발행이 담당.
-# 주의: 3(HOLD)은 멈춘 모션이 컨트롤러에 '보류'로 남아서, 이후 move_resume을 누르면
-# 주인 잃은 모션이 재개될 수 있다. 잔여 상태 없이 끊으려면 0 또는 1(급정지)을 쓸 것.
-STOP_MODE = 0
-
-# 정지 유지(가드) — 정지 버튼 후 '서보 복구'로 해제할 때까지 move_stop을 이 주기로
-# 반복 호출한다. /stop_perfume만으로는 cobot_control이 신호를 못 받는 상황(프로세스
-# 이상, 다른 노드가 모션을 보내는 경우 등)을 못 막아서, 새로 출발하는 모션을 다음
-# 주기 안에 끊는 이중 안전망. 모션 서비스만 끊으므로 그리퍼 I/O까지 막지는 못한다
-# (그건 /stop_perfume에 의한 시퀀스 종료가 담당).
-STOP_GUARD_INTERVAL_SEC = 0.2
-# set_robot_control 값 — CONTROL_RESET_SAFET_OFF(3): STATE_SAFE_OFF → STATE_STANDBY.
-# 티칭펜던트의 'Servo On' 버튼과 같은 동작 (DSR_ROBOT2.py의 CONTROL_SERVO_ON 별칭).
-CONTROL_RESET_SAFET_OFF = 3
 
 # 그리퍼 상태 / TCP 힘 조회용 — 로봇 드라이버가 직접 제공하는 서비스
 # cobot_control의 grip()/release()가 컨트롤박스 디지털 출력 1/2/3번으로 그리퍼를
@@ -284,10 +273,9 @@ class RobotBridge:
         rclpy.init()
         self._node = Node("perfume_hmi_client")
 
-        # 관리자 HMI용 제어 클라이언트 (로봇 정지 / 서보 복구 / 홈 복귀)
-        self._move_stop_client = self._node.create_client(MoveStop, MOVE_STOP_SERVICE)
-        # set_robot_control은 정지(Safe-Off) 후 서보 복구용 서비스라, 제조 시퀀스가 깨진 상태에서 재개되지 않도록 한다.
-        self._robot_control_client = self._node.create_client(SetRobotControl, SET_ROBOT_CONTROL_SERVICE)
+        # 관리자 HMI용 제어 클라이언트 (홈 복귀)
+        # 로봇 정지는 서비스 호출이 아니라 /stop_perfume 발행뿐이라 클라이언트가 없다
+        # (정지 로직은 cobot_control 한 곳에 모음 — STOP_PERFUME_TOPIC 주석 참고).
         # 홈 복귀용 move_joint 서비스 (SYNC 모션)
         self._move_joint_client = self._node.create_client(MoveJoint, MOVE_JOINT_SERVICE)
 
@@ -320,11 +308,6 @@ class RobotBridge:
         # 이후 마감(_record_making_result)마다 메모리와 DB에 함께 기록한다.
         self._making_history = deque(self._load_making_history(), maxlen=MAKING_HISTORY_LIMIT)
 
-        # 정지 유지(가드) 상태 — stop_robot()이 켜고 servo_on()이 꺼진다.
-        # Event는 가드 스레드의 루프 조건, 락은 중복 스레드 생성 방지용.
-        self._stop_guard_event = threading.Event()
-        self._stop_guard_lock = threading.Lock()
-
         # 관리자 HMI용 모니터링 구독 (조인트 상태 / 에러 / 연결 끊김 이벤트)
         self._node.create_subscription(JointState, JOINT_STATES_TOPIC, self._joint_states_callback, 10)
         self._node.create_subscription(RobotError, ROBOT_ERROR_TOPIC, self._robot_error_callback, 10)
@@ -337,7 +320,7 @@ class RobotBridge:
         self._node.create_subscription(Bool, ORDER_DONE_TOPIC, self._order_done_callback, 10)
         # 제조 공정 단계 신호 — 관리자 화면 '제조 현황'의 소스 (STATUS_* 규약 참고).
         self._node.create_subscription(Int32, PERFUME_STATUS_TOPIC, self._perfume_status_callback, 10)
-        # 제조 시퀀스 중단 신호 발행용 — stop_robot()이 move_stop과 함께 발행한다.
+        # 제조 시퀀스 중단 신호 발행용 — stop_robot()의 유일한 동작이다.
         self._stop_perfume_pub = self._node.create_publisher(Bool, STOP_PERFUME_TOPIC, 10)
 
         # 그리퍼/힘 값은 토픽이 아니라 서비스라 push로 오지 않는다 — 타이머로 주기적으로
@@ -360,7 +343,6 @@ class RobotBridge:
 
     def shutdown(self):
         """Flask 앱 종료 시 ROS2 자원을 정리한다."""
-        self._stop_guard_event.clear()  # 가드 스레드가 있으면 다음 주기에 종료된다
         self._executor.shutdown()
         # spin 스레드가 완전히 끝난 뒤에 rclpy.shutdown()을 불러야 한다.
         # 순서를 지키지 않으면 인터프리터 종료 시 세그폴트가 날 수 있다.
@@ -682,8 +664,6 @@ class RobotBridge:
                     "gripper": _gripper_label(self._robot_status["do1"], self._robot_status["do2"]),
                     "tool_force": list(self._robot_status["tool_force"]),
                     "speed_mode": self._robot_status["speed_mode"],
-                    # 정지 유지(가드) 활성 여부 — 화면에서 '정지 유지 중' 배지로 표시
-                    "stop_guard": self._stop_guard_event.is_set(),
                 },
                 "making": {
                     "active": making_active,
@@ -708,18 +688,18 @@ class RobotBridge:
     # ==============================================================
 
     def stop_robot(self):
-        """로봇 정지 — 제조 시퀀스 중단 신호 발행 + 정지 유지(가드) 시작 + 모션 정지.
+        """로봇 정지 — /stop_perfume(true) 발행. 실제 정지는 cobot_control이 수행한다.
 
-        move_stop 서비스는 "지금 실행 중인 모션 1개"만 멈춘다. 실로봇 테스트에서
-        move_stop만으로는 서보가 차단되지 않아, cobot_control이 시퀀스의 다음
-        모션을 이어 보내면 로봇이 잠깐 멈췄다가 계속 움직였다. 그래서:
-        1) /stop_perfume(true)를 발행해 cobot_control이 제조 시퀀스 자체를
-           중단하게 하고 (그쪽 stop_callback → KeyboardInterrupt →
-           perfume_done=false 발행 후 프로세스 종료),
-        2) '정지 유지 가드(코드 504라인부터 확인)' 를 켜서 '서보 복구'로 해제할 때까지 move_stop을
-           반복 호출한다 — cobot_control이 신호를 못 받는 상황에서도 새로
-           출발하는 모션을 다음 주기 안에 끊는 이중 안전망,
-        3) 진행 중인 모션은 move_stop으로 즉시 멈춘다.
+        정지 로직은 cobot_control 한 곳에 모여 있다: 이 신호를 받으면 그쪽이
+        move_stop(진행 중 모션 정지) + 시퀀스 중단(KeyboardInterrupt) +
+        perfume_done=false 발행 후 종료까지 처리한다 (검증된 참고 구현:
+        main_thread.py의 stop_callback — 새 메인 파일에도 이 구독이 반드시
+        있어야 정지가 성립한다). HMI가 move_stop을 직접 부르지 않는 이유는
+        STOP_PERFUME_TOPIC 주석 참고.
+
+        발행은 구독자가 없어도 조용히 성공하므로, 구독자 수를 확인해서
+        cobot_control이 안 듣고 있으면 관리자에게 에러로 알린다 — 이때 로봇은
+        이 버튼으로 멈출 수 없다는 뜻이다 (물리 비상정지가 최후 수단).
 
         주의 1: 이건 이더넷(ROS2) 경유의 일반 소프트웨어 정지라 안전
         정지(STO/SS1/SS2)나 비상 정지가 아니다 — 물리 비상정지 버튼을 대체할
@@ -728,100 +708,23 @@ class RobotBridge:
         2: 정지하면 cobot_control 프로세스가 종료되므로, 새 주문을 받으려면
         cobot_control을 다시 실행해야 한다.
         """
-        # 1) 제조 시퀀스 중단 요청 — cobot_control이 안 떠 있어도 발행 자체는 무해하다.
         stop_msg = Bool()
         stop_msg.data = True
         self._stop_perfume_pub.publish(stop_msg)
 
-        # 2) 정지 유지 시작 — 아래 첫 move_stop이 실패해도 가드가 계속 재시도한다.
-        self._start_stop_guard()
-
-        # 3) 진행 중인 모션 즉시 정지.
-        # 서비스가 아직 안 떠 있으면(로봇 드라이버가 motion 서비스를 안 켰거나 시뮬레이션 환경 등)
-        # 에러로 알리되, 가드는 켜져 있으므로 서비스가 뜨는 즉시 정지가 걸린다.
-        if not self._move_stop_client.wait_for_service(timeout_sec=2.0):
+        listeners = self._stop_perfume_pub.get_subscription_count()
+        if listeners == 0:
+            self._node.get_logger().error(
+                "[admin] 정지 신호(/stop_perfume) 발행 — 구독자 없음! cobot_control 미실행/미구현 의심")
             return {"status": "error",
-                    "message": "정지 서비스에 연결할 수 없습니다 (제조 중단 신호 발행 + 정지 유지는 활성)."}
+                    "message": "정지 신호를 발행했지만 받는 노드가 없습니다 — "
+                               "cobot_control이 실행 중인지(그리고 /stop_perfume를 구독하는지) 확인하세요. "
+                               "지금은 이 버튼으로 로봇을 멈출 수 없습니다."}
 
-        request = MoveStop.Request()
-        request.stop_mode = STOP_MODE
-
-        self._node.get_logger().warn("[admin] 로봇 정지 — /stop_perfume 발행 + 정지 유지 시작 + move_stop 호출!")
-        response = _wait_future(self._move_stop_client.call_async(request), timeout_sec=3.0)
-        if response is None or not response.success:
-            return {"status": "error",
-                    "message": "정지 명령이 실패했습니다 (정지 유지는 활성 — 계속 재시도합니다)."}
+        self._node.get_logger().warn(f"[admin] 로봇 정지 — /stop_perfume 발행 (구독자 {listeners}개)")
         return {"status": "success",
-                "message": "정지 완료 — 제조 시퀀스 중단, '서보 복구'를 누를 때까지 정지를 유지합니다."}
-
-    # ---- 정지 유지(가드) ----
-    # move_stop은 1회성이라, 정지 후에도 control_cobot에서 모션 명령이 오면 로봇이 다시
-    # 움직이는거 확인. 가드는 해제 전까지 move_stop을 반복 호출해서 이를 막는다. 
-    # MovePause, MoveResume 사용도 고려해보면 좋을듯. MoveStop이랑 같이 사용은 안되게 설계돼서 택 1.
-
-    def _start_stop_guard(self):
-        """정지 유지 시작 — 이미 켜져 있으면 아무것도 하지 않는다."""
-        with self._stop_guard_lock:
-            if self._stop_guard_event.is_set():
-                return
-            self._stop_guard_event.set()
-            threading.Thread(target=self._stop_guard_loop, daemon=True).start()
-
-    def _release_stop_guard(self):
-        """정지 유지 해제. 켜져 있었으면 True를 반환한다."""
-        with self._stop_guard_lock:
-            was_active = self._stop_guard_event.is_set()
-            self._stop_guard_event.clear()
-        return was_active
-
-    def _stop_guard_loop(self):
-        """정지 유지 루프 (데몬 스레드) — 해제될 때까지 move_stop을 반복 호출.
-
-        응답은 기다리지 않는다(call_async만) — 목적이 '새로 출발한 모션을 다음
-        주기 안에 끊는 것'이라 개별 결과 확인이 필요 없고, 응답 처리는 spin
-        스레드가 알아서 한다. 서비스가 안 떠 있으면 조용히 다음 주기에 재시도.
-        """
-        self._node.get_logger().warn("[guard] 정지 유지 시작 — 해제 전까지 move_stop 반복 호출")
-        while self._stop_guard_event.is_set():
-            if self._move_stop_client.service_is_ready():
-                request = MoveStop.Request()
-                request.stop_mode = STOP_MODE
-                self._move_stop_client.call_async(request)
-            time.sleep(STOP_GUARD_INTERVAL_SEC)
-        self._node.get_logger().warn("[guard] 정지 유지 해제됨")
-
-    def servo_on(self):
-        """정지 해제 — 정지 유지(가드)를 풀고, Safe-Off 상태면 서보도 복구한다.
-
-        먼저 정지 유지를 해제한 뒤 set_robot_control에 CONTROL_RESET_SAFET_OFF(3)를
-        보낸다(티칭펜던트 'Servo On'과 동일). 로봇이 Safe-Off가 아니면 이 명령은
-        실패할 수 있는데, 정지 유지 해제가 주 목적일 때는 그것도 정상이라 성공으로
-        처리한다. 반드시 정지 원인을 현장에서 확인·조치한 뒤에 사용해야 하며,
-        복구 후 재개 개념은 없으므로 제조는 처음부터 다시 시작해야 한다.
-        """
-        guard_released = self._release_stop_guard()
-
-        if not self._robot_control_client.wait_for_service(timeout_sec=2.0):
-            if guard_released:
-                return {"status": "success",
-                        "message": "정지 유지를 해제했습니다 (서보 복구 서비스에는 연결할 수 없었음)."}
-            return {"status": "error", "message": "서보 복구 서비스에 연결할 수 없습니다."}
-
-        request = SetRobotControl.Request()
-        request.robot_control = CONTROL_RESET_SAFET_OFF
-
-        self._node.get_logger().warn("[admin] 서보 복구(set_robot_control=RESET_SAFET_OFF) 호출")
-        response = _wait_future(self._robot_control_client.call_async(request), IO_TIMEOUT_SEC)
-        ok = response is not None and response.success
-        if guard_released:
-            return {"status": "success",
-                    "message": ("정지 유지 해제 + 서보 복구 완료. 필요하면 홈 복귀 후 재가동하세요."
-                                if ok else
-                                "정지 유지를 해제했습니다 (서보 복구 명령은 실패 — Safe-Off 상태가 아니면 정상입니다).")}
-        if not ok:
-            return {"status": "error",
-                    "message": "서보 복구에 실패했습니다. 로봇이 Safe-Off 상태가 맞는지 확인하세요."}
-        return {"status": "success", "message": "서보 복구 완료. 필요하면 홈 복귀 후 재가동하세요."}
+                "message": "정지 신호 전송 완료 — cobot_control이 모션 정지와 시퀀스 중단을 수행합니다. "
+                           "새 주문을 받으려면 현장 확인 후 cobot_control을 다시 실행하세요."}
 
     def set_gripper(self, action):
         """그리퍼 수동 개폐 — cobot_control의 grip()/release()와 같은 DO 시퀀스를 그대로 재현한다.
@@ -907,10 +810,6 @@ class RobotBridge:
         제조가 겹치지 않게 하려면 로봇 제어부 쪽(또는 로봇 컨트롤러 자체)에서도
         막아줘야 한다 (cross-process 동시성은 이 모듈 책임 밖).
         """
-        # 정지 유지 중 홈 복귀는 출발하자마자 가드에 끊긴다 — 먼저 해제하게 안내.
-        if self._stop_guard_event.is_set():
-            return {"status": "error",
-                    "message": "정지 유지 중에는 홈 복귀를 할 수 없습니다. 먼저 '서보 복구'로 해제하세요."}
         if not self._move_joint_client.wait_for_service(timeout_sec=2.0):
             return {"status": "error", "message": "모션 서비스에 연결할 수 없습니다."}
 

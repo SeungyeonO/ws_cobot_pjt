@@ -1,7 +1,7 @@
 // ===== 관리자 HMI =====
 // 1초마다 /api/admin/status를 폴링해서 로봇 연결/조인트/그리퍼/TCP 힘/제조 현황/
 // 로그(에러뿐 아니라 INFO/WARN 이벤트도 포함)를 갱신하고, 제어 버튼(로봇 정지/
-// 서보 복구/홈 복귀/그리퍼 개폐/속도 모드 전환/키오스크 잠금/로그 지우기)은 POST로 실행한다.
+// 홈 복귀/그리퍼 개폐/속도 모드 전환/키오스크 잠금/로그 지우기)은 POST로 실행한다.
 
 const POLL_INTERVAL_MS = 1000;
 let kioskLocked = false; // 최근 폴링 기준 잠금 상태 (토글 스위치 표시용)
@@ -127,11 +127,7 @@ function render(s) {
     lastMotionTs = Date.now();
   }
   prevJoints = joints.slice();
-  if (s.robot.stop_guard) {
-    // 정지 유지(가드) 활성 — '서보 복구'를 누를 때까지 move_stop이 반복 호출되는 상태
-    motionBadge.className = "badge off";
-    motionBadge.textContent = "정지 유지 중";
-  } else if (!connected) {
+  if (!connected) {
     motionBadge.className = "badge off";
     motionBadge.textContent = "--";
   } else if (Date.now() - lastMotionTs < MOTION_HOLD_MS) {
@@ -238,20 +234,12 @@ async function postControl(url, body) {
 }
 
 // 로봇 정지 — 긴급 상황용이므로 확인창 없이 즉시 실행.
-// cobot_control 제조 시퀀스 중단(/stop_perfume) + 진행 중 모션 정지(move_stop).
+// /stop_perfume 발행뿐 — 실제 정지(move_stop + 시퀀스 중단)는 cobot_control이 수행.
 // 주의: 이더넷 경유 소프트웨어 정지라 안전 정지/비상 정지가 아니다 —
 // 물리 비상정지 버튼을 대체할 수 없다 (robot_bridge.py 주석 참고).
 document.getElementById("btn-stop").addEventListener("click", async () => {
   showControlMsg("정지 명령 전송 중...", true);
   const r = await postControl("/api/admin/stop");
-  showControlMsg(r.message || "", r.status === "success");
-});
-
-// 복구 — 정지 유지(가드) 해제 + Safe-Off면 서보 복구. 실수로 누르는 걸 막기 위해 확인창을 띄운다.
-document.getElementById("btn-servo-on").addEventListener("click", async () => {
-  if (!confirm("정지 원인을 확인·조치했습니까?\n복구하면 로봇이 다시 움직일 수 있는 상태가 됩니다.")) return;
-  showControlMsg("복구 중...", true);
-  const r = await postControl("/api/admin/servo_on");
   showControlMsg(r.message || "", r.status === "success");
 });
 

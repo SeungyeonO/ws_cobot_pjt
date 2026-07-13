@@ -77,13 +77,9 @@
             <div class="stop-ring">
                 <button id="btn-stop" class="stop-btn" type="button">정지<span class="stop-sub">STOP</span></button>
             </div>
-            <!-- 정지는 서보 차단(Safe-Off)이라 자동 재개가 불가 — 현장 확인 후 복구로 해제.
-                 복구 = 정지 유지(가드) 해제 + 서보 복구(servo_on) — robot_bridge.py 주석 참고.
-                 소프트웨어 정지(move_stop)라 안전 정지/비상 정지가 아님 -->
-            <div class="ctl-group">
-                <span class="ctl-label">정지 복구</span>
-                <button id="btn-servo-on" class="btn secondary ctl-home" type="button">복구</button>
-            </div>
+            <!-- 정지 = /stop_perfume 발행 — 실제 정지(move_stop + 시퀀스 중단)는 cobot_control이 수행.
+                 재개/복구 개념 없음: 정지하면 cobot_control이 종료되므로 새 주문은 재실행 후 받는다.
+                 소프트웨어 정지라 안전 정지/비상 정지가 아님. Safe-Off 복구는 티칭펜던트로. -->
             <!-- 일시정지/재개 버튼은 제거됨 — 두산 ROS2 드라이버가 모션 진행 중에
                  move_pause 요청에 응답하지 못하는 구조라 실사용 불가 (robot_bridge.py 주석 참고) -->
             <div class="ctl-group">

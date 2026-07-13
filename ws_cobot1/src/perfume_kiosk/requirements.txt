@@ -1,0 +1,12 @@
+# perfume_kiosk — pip 의존성 (pip install -r requirements.txt)
+#
+# 여기에는 pip으로 설치하는 서드파티만 적는다. ROS2 쪽 의존성(rclpy,
+# ament_index_python, std_msgs, perfume_order_srv)은 pip 대상이 아니라
+# ROS Humble 설치 + 워크스페이스 빌드/소싱으로 해결된다 (package.xml 참고).
+# sqlite3(레시피 DB)는 파이썬 표준 라이브러리라 설치 불필요.
+
+# 키오스크 웹 서버 (Ubuntu 22.04 apt python3-flask는 2.0.x)
+flask>=2.0
+
+# HMI 서버의 잠금 상태 조회 (GET /internal/lock_status 서버-to-서버 호출)
+requests>=2.25

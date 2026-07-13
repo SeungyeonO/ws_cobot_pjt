@@ -81,7 +81,7 @@ ALL_SCENTS = {s for layer in VALID_SCENTS.values() for s in layer}
 
 # ---- HMI 백엔드 (perfume_hmi) — 잠금 상태 조회 전용 ----
 # HMI 실행 pc ip 주소와 perfume_hmi에서 설정한 api key를 반드시 동일하게 통일
-HMI_BASE_URL = os.environ.get("HMI_BASE_URL", "http://172.23.0.157:5000")
+HMI_BASE_URL = os.environ.get("HMI_BASE_URL", "http://172.23.0.195:5000")
 HMI_API_KEY = os.environ.get("HMI_API_KEY", "perfume-internal-key")  # perfume_hmi와 동일해야 함
 
 
