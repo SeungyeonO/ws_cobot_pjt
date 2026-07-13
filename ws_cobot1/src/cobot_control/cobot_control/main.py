@@ -526,7 +526,7 @@ def main(args=None):
             # 230: 향수병 뚜껑 닫기
             publish_status(STATUS_CLOSE_PERFUME_LID)
 
-            controller.close_lid(cycle=4)
+            controller.close_lid(cycle=3)
 
             # =================================================
             # 완성된 향수병 잡기
@@ -586,7 +586,7 @@ def main(args=None):
             controller.move_to_pose(
                 PICKUP_POSE,
                 from_home=True,
-                down=80,
+                down=50,
             )
 
             # =================================================
