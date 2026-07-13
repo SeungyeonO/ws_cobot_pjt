@@ -65,6 +65,7 @@ from collections import deque
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile
 
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, Int32
@@ -99,6 +100,14 @@ MOVE_JOINT_SERVICE = f"/{ROBOT_NAMESPACE}/motion/move_joint"
 # 전에" 발행해야 이 자동 정지가 의미가 있다 (kiosk의 ORDER_DONE_TOPIC과 동일해야 함).
 ORDER_DONE_TOPIC = "/perfume_done"
 
+# 키오스크 잠금 상태 토픽 (std_msgs/Bool) — HMI가 발행, kiosk가 구독한다
+# (kiosk의 KIOSK_LOCK_TOPIC과 동일해야 함). true=잠금(점검 중), false=해제.
+# 잠금 상태의 단일 소스는 HMI(app.py의 kiosk_locked)이고, 이 토픽은 그 값을
+# 래치(transient_local QoS)로 흘려보내는 통로다 — kiosk가 나중에 켜져도
+# 마지막 잠금 상태를 바로 받는다. 예전에는 kiosk가 HTTP(GET /internal/lock_status)로
+# 폴링했는데, HMI PC의 IP를 환경변수로 맞춰줘야 해서 다른 채널(/order_perfume,
+# /perfume_done)처럼 DDS 자동 발견을 쓰는 토픽으로 교체했다.
+KIOSK_LOCK_TOPIC = "/kiosk_locked"
 
 
 # 제조 공정 단계 토픽 (std_msgs/Int32) — cobot_control이 공정 단계가 바뀔 때마다
@@ -322,6 +331,14 @@ class RobotBridge:
         self._node.create_subscription(Int32, PERFUME_STATUS_TOPIC, self._perfume_status_callback, 10)
         # 제조 시퀀스 중단 신호 발행용 — stop_robot()의 유일한 동작이다.
         self._stop_perfume_pub = self._node.create_publisher(Bool, STOP_PERFUME_TOPIC, 10)
+
+        # 키오스크 잠금 상태 발행용 — 래치(transient_local) QoS라 늦게 켜진 kiosk도
+        # 마지막 값을 바로 받는다. HMI 재시작 시 잠금이 False로 초기화되므로
+        # (app.py의 kiosk_locked 전역과 동일한 규약) 시작하자마자 False를 한 번
+        # 발행해서 래치 값과 전역 값이 어긋나지 않게 한다.
+        lock_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self._kiosk_lock_pub = self._node.create_publisher(Bool, KIOSK_LOCK_TOPIC, lock_qos)
+        self.publish_kiosk_lock(False)
 
         # 그리퍼/힘 값은 토픽이 아니라 서비스라 push로 오지 않는다 — 타이머로 주기적으로
         # call_async를 쏘고, 응답이 오면 add_done_callback으로 캐시만 갱신한다. get_status()는
@@ -676,6 +693,18 @@ class RobotBridge:
                 "errors": list(self._error_log),
             }
         return status
+
+    def publish_kiosk_lock(self, locked):
+        """키오스크 잠금 상태 발행 — kiosk가 KIOSK_LOCK_TOPIC(래치)으로 받아간다.
+
+        잠금 값 자체는 app.py의 kiosk_locked 전역이 단일 소스이고, 여기서는
+        그 값이 바뀔 때(admin_lock 라우트)와 시작 시(생성자) 발행만 한다.
+        """
+        msg = Bool()
+        msg.data = bool(locked)
+        self._kiosk_lock_pub.publish(msg)
+        self._node.get_logger().info(
+            f"[admin] 키오스크 {'잠금' if msg.data else '잠금 해제'} — {KIOSK_LOCK_TOPIC} 발행")
 
     def clear_errors(self):
         """관리자 화면의 로그 비우기 (화면 관리용 — 로봇에는 아무 영향 없음)."""

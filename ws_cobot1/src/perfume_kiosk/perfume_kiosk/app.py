@@ -4,8 +4,11 @@
 브라우저는 항상 이 서버하고만 통신하므로(상대 경로 fetch 그대로) 프론트엔드
 코드 변경이 필요 없다.
 
-- HMI 백엔드(perfume_hmi, 로봇 제어 PC): 잠금 상태(kiosk_locked) 조회만
-  HTTP로. admin이 키오스크를 잠그면 여기로 반영된다.
+- HMI 백엔드(perfume_hmi, 로봇 제어 PC): 잠금 상태(kiosk_locked)를 ROS2 래치
+  토픽(/kiosk_locked, std_msgs/Bool)으로 발행하고 여기서 구독한다. admin이
+  키오스크를 잠그면 이 토픽으로 반영된다. (예전의 HTTP 폴링 방식은 HMI PC
+  IP를 환경변수로 맞춰줘야 해서, 아래 주문 채널처럼 DDS 자동 발견을 쓰는
+  토픽으로 교체했다.)
 - 로봇 제어부 주문 서비스: 실제 제조(dispense) 요청은 ROS2 서비스로 직접
   보낸다. 로봇 네임스페이스 없이 서비스 이름 "/order_perfume", 타입
   perfume_order_srv/srv/Order (scent1~scent6 샷 수 요청).
@@ -17,13 +20,12 @@
   주문만 전달한 뒤 완료 토픽 이벤트를 기다려 블로킹 호출처럼 동작한다.
 
 - GET  /api/recipes        추천 조합 목록 (SQLite3 동적 로드)
-- POST /api/make_perfume   제조 요청 (배율/횟수 계산 후 /order_perfume 호출)
-- GET  /api/kiosk_status   키오스크 잠금 여부 (HMI 백엔드에서 조회, 손님 화면이 점검 중 표시에 사용)
+- POST /api/make_perfume   제조 요청 (배율/횟수 계산 후 /order_perfume 호출,
+                           잠금 중이면 503 — 프론트가 점검 화면으로 전환)
+- GET  /api/kiosk_status   키오스크 잠금 여부 (/kiosk_locked 구독 값, 손님 화면이 점검 중 표시에 사용)
 - /                        프론트엔드 서빙
 - DB 초기화: 서버 시작 시 DB_PATH(~/.perfume/kiosk.db)가 없으면
   schema.sql + 시드로 자동 생성 (재초기화하려면 그 파일 삭제 후 재시작)
-- 설정(환경변수):
-  - HMI_BASE_URL, HMI_API_KEY: perfume_hmi 쪽 값과 반드시 동일해야 함
 
 [제조 흐름 요약]
 프론트 "제조하기" 클릭 → POST /api/make_perfume → RobotOrderClient.order()가
@@ -35,7 +37,7 @@ ORDER_DONE_TOPIC으로 true를 publish할 때까지 블로킹 → 그 결과를 
   source /opt/ros/humble/setup.bash
   cd <ws_cobot1> && colcon build --packages-select perfume_order_srv perfume_kiosk
   source <ws_cobot1>/install/setup.bash
-  HMI_BASE_URL=http://<HMI-PC-IP>:5000 HMI_API_KEY=<키> ros2 run perfume_kiosk perfume_kiosk
+  ros2 run perfume_kiosk perfume_kiosk
 """
 import atexit
 import os
@@ -43,12 +45,12 @@ import sqlite3
 import threading
 from pathlib import Path
 
-import requests
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from flask import Flask, jsonify, request, send_from_directory
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from std_msgs.msg import Bool
 
 from perfume_order_srv.srv import Order
@@ -79,12 +81,6 @@ VALID_SCENTS = {
 }
 ALL_SCENTS = {s for layer in VALID_SCENTS.values() for s in layer}
 
-# ---- HMI 백엔드 (perfume_hmi) — 잠금 상태 조회 전용 ----
-# HMI 실행 pc ip 주소와 perfume_hmi에서 설정한 api key를 반드시 동일하게 통일
-HMI_BASE_URL = os.environ.get("HMI_BASE_URL", "http://172.23.0.195:5000")
-HMI_API_KEY = os.environ.get("HMI_API_KEY", "perfume-internal-key")  # perfume_hmi와 동일해야 함
-
-
 # ==============================================================
 # 로봇 제어부 주문 서비스 (ROS2) — /order_perfume 클라이언트
 # ==============================================================
@@ -95,6 +91,12 @@ ORDER_SERVICE_NAME = "/order_perfume"
 # 제조 완료 신호 토픽 (std_msgs/Bool) — 로봇 제어부가 제조를 마치면 true를
 # publish한다. 로봇 쪽 퍼블리셔 토픽 이름과 반드시 동일해야 함.
 ORDER_DONE_TOPIC = "/perfume_done"
+
+# 키오스크 잠금 상태 토픽 (std_msgs/Bool) — HMI(perfume_hmi, 로봇 제어 PC)가
+# 발행하고 여기서 구독한다 (HMI 쪽 robot_bridge의 KIOSK_LOCK_TOPIC과 동일해야 함).
+# true=잠금(점검 중), false=해제. HMI가 래치(transient_local QoS)로 발행하므로
+# 이쪽이 나중에 켜져도 마지막 잠금 상태를 바로 받는다 — 구독 QoS도 같아야 래치가 동작한다.
+KIOSK_LOCK_TOPIC = "/kiosk_locked"
 
 # 로봇 물리 슬롯(밸브) 순서 — scent1~scent6과 1:1 고정 매핑.
 # 위 VALID_SCENTS(top/middle/base)와 항상 동일하게 유지할 것.
@@ -107,6 +109,7 @@ class RobotOrderClient:
 
     - /order_perfume 서비스: 주문 전달 (응답 success는 완료 판정에 쓰지 않음)
     - ORDER_DONE_TOPIC 토픽: 제조 완료 신호(true) 수신
+    - KIOSK_LOCK_TOPIC 토픽: HMI의 키오스크 잠금 상태 수신 (is_locked()로 조회)
     Flask 앱 시작 시 하나만 만들어(main() 참고) 서버가 켜져 있는 동안 재사용한다.
     """
 
@@ -127,6 +130,14 @@ class RobotOrderClient:
         self._done_event = threading.Event()
         self._done_result = False
 
+        # 키오스크 잠금 상태 구독 — HMI가 래치(transient_local)로 발행하므로
+        # 구독 QoS도 맞춰야 이쪽이 늦게 켜져도 마지막 값을 받는다. 아직 아무
+        # 메시지도 못 받았으면(HMI 미실행 등) 잠금 아님으로 간주한다.
+        lock_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        self._kiosk_locked = False
+        self._lock_sub = self._node.create_subscription(
+            Bool, KIOSK_LOCK_TOPIC, self._on_lock, lock_qos)
+
         # 동기화 / 병렬처리 세팅
         self._executor = MultiThreadedExecutor()
         self._executor.add_node(self._node)
@@ -136,6 +147,16 @@ class RobotOrderClient:
         # 문제 없을 시 ROS2 준비 완료 로그
         self._node.get_logger().info(
             f"[perfume_kiosk] ROS2 준비 완료 ({ORDER_SERVICE_NAME} 클라이언트, {ORDER_DONE_TOPIC} 구독)")
+
+    def _on_lock(self, msg):
+        """KIOSK_LOCK_TOPIC 콜백 — HMI가 잠금 상태를 바꿀 때마다(그리고 시작 시 한 번) 온다."""
+        self._kiosk_locked = bool(msg.data)
+        self._node.get_logger().info(
+            f"[lock] 키오스크 {'잠금' if self._kiosk_locked else '잠금 해제'} 수신")
+
+    def is_locked(self):
+        """현재 키오스크 잠금 여부 — 마지막으로 수신한 잠금 상태를 그대로 돌려준다."""
+        return self._kiosk_locked
 
     def _on_done(self, msg):
         """ORDER_DONE_TOPIC 콜백 — true면 제조 성공, false면 제조 실패.
@@ -343,18 +364,12 @@ def _plan_from_free(slots):
 def kiosk_status():
     """손님 화면이 시작/점검중 화면에서 잠금 여부를 확인하는 용도.
 
-    HMI 백엔드가 kiosk_locked의 단일 소스이므로 매번 그쪽에 물어본다.
+    잠금 상태의 단일 소스는 HMI 백엔드이고, 그 값이 KIOSK_LOCK_TOPIC 래치
+    토픽으로 넘어와 RobotOrderClient에 캐시돼 있다 — 여기서는 그걸 읽기만 한다.
     """
-    try:
-        res = requests.get(
-            f"{HMI_BASE_URL}/internal/lock_status",
-            headers={"X-HMI-Api-Key": HMI_API_KEY},
-            timeout=3.0,
-        )
-        res.raise_for_status()
-    except requests.RequestException:
-        return jsonify({"status": "error", "message": "HMI 서버와 통신할 수 없습니다."}), 502
-    return jsonify({"locked": bool(res.json().get("locked"))})
+    if _robot is None:
+        return jsonify({"status": "error", "message": "ROS2가 초기화되지 않았습니다."}), 502
+    return jsonify({"locked": _robot.is_locked()})
 
 
 @app.route("/api/make_perfume", methods=["POST"])
@@ -406,6 +421,14 @@ def make_perfume():
     # 토픽(ORDER_DONE_TOPIC)으로 true가 올 때까지 블로킹된다 (RobotOrderClient.order() 참고).
     if _robot is None:
         return jsonify({"status": "error", "message": "ROS2가 초기화되지 않았습니다."}), 502
+
+    # 잠금 검사는 주문 직전에 한다 — 손님이 화면을 열어둔 채로 관리자가 잠근
+    # 경우를 여기서 걸러야 잠금 중 제조가 로봇까지 전달되지 않는다.
+    # 503은 프론트(app.js submitPerfume)가 점검 화면 전환 신호로 쓰는 규약.
+    if _robot.is_locked():
+        return jsonify({"status": "error",
+                        "message": "지금은 점검 중입니다. 잠시 후 다시 이용해주세요."}), 503
+
     result = _robot.order(plan)
     if not result["success"]:
         return jsonify({"status": "error", "message": result["message"],

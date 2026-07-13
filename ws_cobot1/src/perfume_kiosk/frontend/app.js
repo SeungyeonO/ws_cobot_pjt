@@ -102,7 +102,9 @@ function enterMaintenance() {
     try {
       const res = await fetch("/api/kiosk_status");
       const s = await res.json();
-      if (!s.locked) {
+      // 명시적으로 false일 때만 해제 — 에러 응답({status:"error"})에는 locked가
+      // 없어서 undefined인데, 그걸 해제로 오인해 점검 화면이 풀리면 안 된다.
+      if (s.locked === false) {
         clearInterval(maintenanceTimer);
         goHome();
       }
