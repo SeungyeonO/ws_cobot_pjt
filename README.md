@@ -28,6 +28,7 @@
 ## 1-1. 시스템 설계도 (System Architecture)
 
 <!-- 시스템 설계도 이미지 삽입 -->
+<img src="images/system_design.drawio.png" width="700">
 
 **설명**
 - 키오스크, 협동로봇 제어 PC, 두산 로봇 컨트롤러, 협동로봇, 관리자 HMI로 구성된 전체 시스템 구조를 나타냅니다.
@@ -39,6 +40,11 @@
 
 <!-- 플로우 차트 이미지 삽입 -->
 
+<p align="center">
+  <img src="images/basic_scenario.png" width="32%">
+  <img src="images/stop_scenario.png" width="32%">
+  <img src="images/grip_fail_scenario.png" width="32%">
+</p>
 **설명**
 - 고객의 향료 선택부터 주문 접수, 협동로봇의 조향 작업, 제조 완료까지의 전체 공정 흐름을 나타냅니다.
 - 주문 처리 과정에서 각 단계의 제어 흐름과 작업 순서를 한눈에 확인할 수 있습니다.
