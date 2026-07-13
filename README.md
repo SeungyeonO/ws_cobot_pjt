@@ -28,7 +28,7 @@
 ## 1-1. 시스템 설계도 (System Architecture)
 
 <!-- 시스템 설계도 이미지 삽입 -->
-<img src="images/system_design.drawio.png" width="700">
+<img src="images/system_design.png" width="700">
 
 **설명**
 - 키오스크, 협동로봇 제어 PC, 두산 로봇 컨트롤러, 협동로봇, 관리자 HMI로 구성된 전체 시스템 구조를 나타냅니다.
