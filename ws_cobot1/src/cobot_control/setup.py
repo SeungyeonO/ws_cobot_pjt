@@ -28,6 +28,9 @@ setup(
             'main_thread = cobot_control.main_thread:main',
             'main_log = cobot_control.main_log:main',
             'main_test = cobot_control.main_test:main',
+            'stop_test = cobot_control.stop_test:main',
+            'stop_manager = cobot_control.stop_manager:main',
+            'stop_test2 = cobot_control.stop_test2:main',
         ],
     },
 )

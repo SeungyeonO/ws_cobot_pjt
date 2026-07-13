@@ -13,9 +13,6 @@ DR_init.__dsr__id = ROBOT_ID
 DR_init.__dsr__model = ROBOT_MODEL
 
 
-class StopPerfumeRequested(Exception):
-    pass
-
 # ============================================================
 # HMI 공정 상태 코드
 # ============================================================
@@ -55,6 +52,44 @@ STATUS_RETURN_HOME = 320
 STATUS_READY = 330
 
 
+# 콘솔에서 상태 번호와 이름을 함께 확인하기 위한 용도
+STATUS_NAMES = {
+    STATUS_IDLE: "IDLE",
+    STATUS_ORDER_RECEIVED: "ORDER_RECEIVED",
+    STATUS_PROCESS_START: "PROCESS_START",
+    STATUS_MOVE_TO_PERFUME: "MOVE_TO_PERFUME",
+    STATUS_CHECK_PERFUME: "CHECK_PERFUME",
+    STATUS_OPEN_PERFUME_LID: "OPEN_PERFUME_LID",
+    STATUS_STORE_PERFUME_LID: "STORE_PERFUME_LID",
+
+    STATUS_SCENT_PROCESS_START: "SCENT_PROCESS_START",
+    STATUS_MOVE_TO_SCENT: "MOVE_TO_SCENT",
+    STATUS_EXTRACT_SCENT: "EXTRACT_SCENT",
+    STATUS_GRIP_SCENT_LID: "GRIP_SCENT_LID",
+    STATUS_OPEN_SCENT_LID: "OPEN_SCENT_LID",
+    STATUS_MOVE_TO_MIX_BOTTLE: "MOVE_TO_MIX_BOTTLE",
+    STATUS_DISPENSE_SCENT: "DISPENSE_SCENT",
+    STATUS_GRIP_SCENT_LID_RETURN: "GRIP_SCENT_LID_RETURN",
+    STATUS_RETURN_TO_SCENT: "RETURN_TO_SCENT",
+    STATUS_CLOSE_SCENT_LID: "CLOSE_SCENT_LID",
+    STATUS_SCENT_PROCESS_DONE: "SCENT_PROCESS_DONE",
+
+    STATUS_GET_PERFUME_LID: "GET_PERFUME_LID",
+    STATUS_MOVE_LID_TO_PERFUME: "MOVE_LID_TO_PERFUME",
+    STATUS_CLOSE_PERFUME_LID: "CLOSE_PERFUME_LID",
+    STATUS_GRIP_FINISHED_PERFUME: "GRIP_FINISHED_PERFUME",
+    STATUS_MOVE_TO_HOME: "MOVE_TO_HOME",
+    STATUS_SHAKE_PERFUME: "SHAKE_PERFUME",
+    STATUS_TILT_MIX_PERFUME: "TILT_MIX_PERFUME",
+    STATUS_MOVE_TO_PICKUP: "MOVE_TO_PICKUP",
+    STATUS_PLACE_PERFUME: "PLACE_PERFUME",
+    STATUS_RELEASE_PERFUME: "RELEASE_PERFUME",
+    STATUS_PROCESS_COMPLETE: "PROCESS_COMPLETE",
+    STATUS_RETURN_HOME: "RETURN_HOME",
+    STATUS_READY: "READY",
+}
+
+
 def main(args=None):
     rclpy.init(args=args)
 
@@ -88,8 +123,6 @@ def main(args=None):
             PERFUME_LID_POSE,
             scent_positions,
         )
-
-        from cobot_control.log_dict import STATUS_NAMES
 
     except ImportError as e:
         node.get_logger().error(f"Error importing DSR_ROBOT2: {e}")
@@ -149,34 +182,6 @@ def main(args=None):
         node.get_logger().info(
             f"📡 Published perfume_done: {result}"
         )
-
-    # ========================================================
-    # Subscriber
-    # ========================================================
-    stop_requested = False
-
-    def stop_callback(msg):
-        nonlocal stop_requested
-
-        if not msg.data:
-            return
-
-        stop_requested = True
-
-        node.get_logger().warn(
-            "🛑 /stop_perfume=True 수신: StopPerfumeRequested 발생"
-        )
-
-        raise StopPerfumeRequested(
-            "/stop_perfume requested control node shutdown"
-        )
-    
-    node.create_subscription(
-        Bool,
-        "/stop_perfume",
-        stop_callback,
-        10,
-    )
 
     # ========================================================
     # 주문 데이터
@@ -642,17 +647,6 @@ def main(args=None):
             # 330: 다음 주문 대기
             publish_status(STATUS_READY)
 
-    except StopPerfumeRequested as e:
-            node.get_logger().warn("🛑 제어 노드 중단")
-
-            try:
-                release_force()
-                release_compliance_ctrl()
-            except Exception:
-                pass
-
-            publish_done(False)
-        
     except KeyboardInterrupt:
         node.get_logger().info(
             "Program Stopped"
@@ -679,18 +673,13 @@ def main(args=None):
         except Exception:
             pass
 
-
-
-        if not stop_requested:
-            try:
-                publish_status(STATUS_RETURN_HOME)
-                controller.move_to_home()
-            except Exception as e:
-                node.get_logger().error(f"Failed to move home: {e}")
-
-        else:
-            node.get_logger().warn("🛑 정지 요청 상태이므로 자동 홈 복귀를 수행하지 않습니다.")
-
+        try:
+            publish_status(STATUS_RETURN_HOME)
+            controller.move_to_home()
+        except Exception as e:
+            node.get_logger().error(
+                f"Failed to move home: {e}"
+            )
 
         node.destroy_node()
         rclpy.shutdown()
